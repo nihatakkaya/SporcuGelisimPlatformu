@@ -1,7 +1,7 @@
-@page "/coach/athletes"
-@page "/coach/athletes/{SelectedAthleteId:guid}"
+@page "/parent/athletes"
+@page "/parent/athletes/{SelectedAthleteId:guid}"
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = RoleNames.Coach + "," + RoleNames.Admin)]
+@attribute [Authorize(Roles = RoleNames.Parent)]
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using SporcuGelisim.Domain.Enums
@@ -11,13 +11,13 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject UserManager<ApplicationUser> UserManager
 
-<PageTitle>Sporcularım</PageTitle>
+<PageTitle>Ebeveyn Paneli</PageTitle>
 
 <section class="page-hero compact-hero">
     <div>
-        <p class="dashboard-kicker">Antrenör Takibi</p>
+        <p class="dashboard-kicker">Ebeveyn</p>
         <h1>Sporcularım</h1>
-        <p>Size bağlı sporcuları, branşlarını, iletişim bilgilerini, oturumlarını ve atanmış kelimelerini takip edin.</p>
+        <p>Size atanmış sporcuların iletişim, branş, oturum, kelime ve geri bildirim bilgilerini görüntüleyin.</p>
     </div>
     <div class="hero-badge">
         <span>Toplam sporcu</span>
@@ -37,7 +37,7 @@ else if (athletes.Count == 0)
     <section class="content-card p-4">
         <div class="dashboard-empty">
             <strong>Henüz size bağlı sporcu yok.</strong>
-            <p>Admin, sporcu atama ekranından sporcu ile antrenör arasında aktif ilişki kurmalıdır.</p>
+            <p>Admin, sporcu atama ekranından sporcu ile ebeveyn hesabı arasında aktif ilişki kurmalıdır.</p>
         </div>
     </section>
 }
@@ -45,16 +45,10 @@ else
 {
     <section class="coach-athlete-layout">
         <aside class="athlete-list-panel">
-            <div class="list-toolbar">
-                <label for="AthleteSearch">Sporcu ara</label>
-                <input id="AthleteSearch" class="form-control" @bind="searchText" @bind:event="oninput" placeholder="Ad, branş veya telefon" />
-            </div>
-
             <div class="athlete-list">
-                @foreach (var athlete in FilteredAthletes())
+                @foreach (var athlete in athletes)
                 {
-                    var isSelected = selectedAthlete?.Id == athlete.Id;
-                    <a class="athlete-list-item @(isSelected ? "selected" : null)" href="@($"/coach/athletes/{athlete.Id}")">
+                    <a class="athlete-list-item @(selectedAthlete?.Id == athlete.Id ? "selected" : null)" href="@($"/parent/athletes/{athlete.Id}")">
                         @if (!string.IsNullOrWhiteSpace(athlete.ProfilePhotoPath))
                         {
                             <img class="athlete-avatar-image" src="@PhotoUrl(athlete.ProfilePhotoPath)" alt="@DisplayName(athlete)" />
@@ -99,12 +93,12 @@ else
                 </div>
 
                 <div class="detail-stat-grid">
-                    <div><span>TC kimlik no</span><strong>@DisplayValue(selectedAthlete.NationalIdentityNumber)</strong></div>
                     <div><span>Telefon</span><strong>@DisplayValue(selectedAthlete.PhoneNumber)</strong></div>
                     <div><span>2. telefon</span><strong>@DisplayValue(selectedAthlete.SecondaryPhoneNumber)</strong></div>
                     <div><span>Ebeveyn no</span><strong>@DisplayValue(selectedAthlete.ParentPhoneNumber)</strong></div>
                     <div><span>Doğum tarihi</span><strong>@(selectedAthlete.BirthDate?.ToString("dd.MM.yyyy") ?? "Girilmemiş")</strong></div>
                     <div><span>Adres</span><strong>@DisplayValue(selectedAthlete.Address)</strong></div>
+                    <div><span>Branş</span><strong>@DisplayBranch(selectedAthlete)</strong></div>
                 </div>
 
                 <div class="detail-sections">
@@ -133,12 +127,12 @@ else
 
                     <section>
                         <div class="section-title-row">
-                            <h3>Atanmış Kelimeler</h3>
+                            <h3>Kelimeler</h3>
                             <span>@assignedWords.Count kayıt</span>
                         </div>
                         @if (assignedWords.Count == 0)
                         {
-                            <p class="muted-line">Bu sporcuya atanmış kelime yok.</p>
+                            <p class="muted-line">Atanmış kelime yok.</p>
                         }
                         else
                         {
@@ -158,7 +152,7 @@ else
                         </div>
                         @if (feedbacks.Count == 0)
                         {
-                            <p class="muted-line">Bu sporcu için görüntüleyebileceğiniz geri bildirim yok.</p>
+                            <p class="muted-line">Görüntülenebilir geri bildirim yok.</p>
                         }
                         else
                         {
@@ -190,14 +184,14 @@ else
     private IReadOnlyList<AssignmentRow> assignedWords = [];
     private AthleteRow? selectedAthlete;
     private Guid? currentUserId;
-    private bool isAdmin;
     private bool isLoading = true;
-    private string? searchText;
 
     protected override async Task OnParametersSetAsync()
     {
         isLoading = true;
-        await SetCurrentUserAsync();
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        currentUserId = user?.Id;
         athletes = await LoadAthletesAsync();
         allAssignments = await LoadAssignmentsAsync();
 
@@ -217,14 +211,6 @@ else
         isLoading = false;
     }
 
-    private async Task SetCurrentUserAsync()
-    {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var user = await UserManager.GetUserAsync(authState.User);
-        currentUserId = user?.Id;
-        isAdmin = authState.User.IsInRole(RoleNames.Admin);
-    }
-
     private async Task<IReadOnlyList<AthleteRow>> LoadAthletesAsync()
     {
         if (currentUserId is null)
@@ -232,42 +218,29 @@ else
             return [];
         }
 
-        var query =
-            from profile in Db.AthleteProfiles.AsNoTracking()
+        return await (
+            from relation in Db.AthleteRelations.AsNoTracking()
+            join profile in Db.AthleteProfiles.AsNoTracking() on relation.AthleteProfileId equals profile.Id
             join user in Db.Users.AsNoTracking() on profile.UserId equals user.Id
             join branch in Db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
             from branch in branchJoin.DefaultIfEmpty()
             join photoAsset in Db.FileAssets.AsNoTracking() on user.ProfilePhotoId equals photoAsset.Id into photoJoin
             from photo in photoJoin.DefaultIfEmpty()
-            select new { profile, user, branch, photo };
-
-        if (!isAdmin)
-        {
-            query =
-                from row in query
-                join relation in Db.AthleteRelations.AsNoTracking() on row.profile.Id equals relation.AthleteProfileId
-                where relation.RelatedUserId == currentUserId &&
-                      relation.RelationType == AthleteRelationType.Coach &&
-                      relation.IsActive
-                select row;
-        }
-
-        return await query
-            .OrderBy(x => x.user.FirstName)
-            .ThenBy(x => x.user.LastName)
-            .Select(x => new AthleteRow(
-                x.profile.Id,
-                x.profile.UserId,
-                (x.user.FirstName + " " + x.user.LastName).Trim(),
-                x.branch == null ? null : x.branch.Name,
-                x.profile.NationalIdentityNumber,
-                x.profile.PhoneNumber,
-                x.profile.SecondaryPhoneNumber,
-                x.profile.ParentPhoneNumber,
-                x.profile.Address,
-                x.profile.Biography,
-                x.profile.BirthDate,
-                x.photo == null ? null : x.photo.RelativePath))
+            where relation.RelatedUserId == currentUserId &&
+                  relation.RelationType == AthleteRelationType.Parent &&
+                  relation.IsActive
+            orderby user.FirstName, user.LastName
+            select new AthleteRow(
+                profile.Id,
+                (user.FirstName + " " + user.LastName).Trim(),
+                branch == null ? null : branch.Name,
+                profile.PhoneNumber,
+                profile.SecondaryPhoneNumber,
+                profile.ParentPhoneNumber,
+                profile.Address,
+                profile.Biography,
+                profile.BirthDate,
+                photo == null ? null : photo.RelativePath))
             .ToListAsync(CancellationToken.None);
     }
 
@@ -279,7 +252,7 @@ else
             join word in Db.MotivationWords.AsNoTracking() on assignment.MotivationWordId equals word.Id
             where assignment.IsActive && athleteIds.Contains(assignment.AthleteProfileId)
             orderby word.Text
-            select new AssignmentRow(assignment.Id, assignment.AthleteProfileId, word.Text))
+            select new AssignmentRow(assignment.AthleteProfileId, word.Text))
             .ToListAsync(CancellationToken.None);
     }
 
@@ -291,23 +264,13 @@ else
             .OrderByDescending(x => x.SessionDate)
             .Select(x => new SessionRow(x.Title, x.SessionDate, x.Status))
             .ToListAsync(CancellationToken.None);
-
         feedbacks = await Db.Feedbacks.AsNoTracking()
-            .Where(x => x.AthleteProfileId == athleteId && (isAdmin || x.AuthorUserId == currentUserId || x.RecipientUserId == currentUserId))
+            .Where(x => x.AthleteProfileId == athleteId && (x.AuthorUserId == currentUserId || x.RecipientUserId == currentUserId))
             .OrderByDescending(x => x.FeedbackDate)
             .Select(x => new FeedbackRow(x.FeedbackDate, x.Comment))
             .ToListAsync(CancellationToken.None);
-
         assignedWords = allAssignments.Where(x => x.AthleteProfileId == athleteId).ToList();
     }
-
-    private IEnumerable<AthleteRow> FilteredAthletes() =>
-        string.IsNullOrWhiteSpace(searchText)
-            ? athletes
-            : athletes.Where(x => Contains(x.FullName, searchText) || Contains(x.BranchName, searchText) || Contains(x.PhoneNumber, searchText));
-
-    private static bool Contains(string? value, string query) =>
-        value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
 
     private static string DisplayName(AthleteRow athlete) =>
         string.IsNullOrWhiteSpace(athlete.FullName) ? "İsimsiz sporcu" : athlete.FullName;
@@ -338,10 +301,8 @@ else
 
     private sealed record AthleteRow(
         Guid Id,
-        Guid UserId,
         string? FullName,
         string? BranchName,
-        string? NationalIdentityNumber,
         string? PhoneNumber,
         string? SecondaryPhoneNumber,
         string? ParentPhoneNumber,
@@ -352,5 +313,5 @@ else
 
     private sealed record SessionRow(string Title, DateTimeOffset SessionDate, SessionStatus Status);
     private sealed record FeedbackRow(DateTimeOffset FeedbackDate, string Comment);
-    private sealed record AssignmentRow(Guid Id, Guid AthleteProfileId, string WordText);
+    private sealed record AssignmentRow(Guid AthleteProfileId, string WordText);
 }

@@ -1,12 +1,16 @@
 @page "/athlete/words"
+@rendermode InteractiveServer
 @attribute [Authorize(Roles = RoleNames.Athlete)]
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
+@using SporcuGelisim.Domain.Entities
 @using SporcuGelisim.Domain.Enums
 @using SporcuGelisim.Infrastructure.Data
+@using SporcuGelisim.Infrastructure.Identity
 @inject ApplicationDbContext Db
-@inject ICurrentUserService CurrentUser
-@inject IMotivationWordService WordService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
 
 <PageTitle>Kelime Havuzum</PageTitle>
 
@@ -14,7 +18,7 @@
     <div>
         <p class="dashboard-kicker">Sporcu</p>
         <h1>Kelime Havuzum</h1>
-        <p>Antrenörünüzün size atadığı kelimeleri görüntüleyin. Havuzda görmek istediğiniz yeni kelimeyi sorumlu antrenörünüze istek olarak gönderin.</p>
+        <p>Antrenörünüzün size atadığı kelimeleri görün ve yeni kelime isteğini sorumlu antrenörünüze gönderin.</p>
     </div>
     <div class="hero-badge">
         <span>Atanmış kelime</span>
@@ -123,45 +127,90 @@
 @code {
     private WordRequestInput input = new();
     private Guid athleteProfileId;
-    private IReadOnlyList<WordAssignmentDto> assignments = [];
-    private IReadOnlyList<WordRequestDto> requests = [];
+    private Guid? currentUserId;
+    private IReadOnlyList<AssignmentRow> assignments = [];
+    private IReadOnlyList<RequestRow> requests = [];
     private IReadOnlyList<CoachOption> coaches = [];
     private string? message;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        currentUserId = user?.Id;
         await LoadAsync();
     }
 
     private async Task SubmitAsync()
     {
-        try
+        if (currentUserId is null || athleteProfileId == Guid.Empty)
         {
-            await WordService.SubmitWordRequestAsync(new SubmitWordRequest(athleteProfileId, input.TargetCoachUserId!.Value, input.Text, input.Note), CancellationToken.None);
-            input = new();
-            message = "Başarılı: Kelime isteğiniz antrenörünüze gönderildi.";
-            await LoadAsync();
+            message = "Hata: Sporcu profiliniz bulunamadı.";
+            return;
         }
-        catch (Exception ex)
+
+        if (!input.TargetCoachUserId.HasValue || !coaches.Any(x => x.Id == input.TargetCoachUserId.Value))
         {
-            message = $"Hata: {ex.Message}";
+            message = "Hata: Sorumlu antrenör seçin.";
+            return;
         }
+
+        var normalized = Normalize(input.Text);
+        var pendingExists = await Db.AthleteWordRequests.AnyAsync(x =>
+            x.AthleteProfileId == athleteProfileId &&
+            x.TargetCoachUserId == input.TargetCoachUserId.Value &&
+            x.NormalizedText == normalized &&
+            x.Status == WordRequestStatus.Pending,
+            CancellationToken.None);
+        if (pendingExists)
+        {
+            message = "Hata: Bu kelime için bekleyen bir isteğiniz zaten var.";
+            return;
+        }
+
+        Db.AthleteWordRequests.Add(new AthleteWordRequest
+        {
+            AthleteProfileId = athleteProfileId,
+            RequestedByUserId = currentUserId.Value,
+            TargetCoachUserId = input.TargetCoachUserId.Value,
+            Text = input.Text.Trim(),
+            NormalizedText = normalized,
+            Note = Clean(input.Note)
+        });
+        await Db.SaveChangesAsync(CancellationToken.None);
+
+        input = new();
+        message = "Başarılı: Kelime isteğiniz antrenörünüze gönderildi.";
+        await LoadAsync();
     }
 
     private async Task LoadAsync()
     {
-        if (CurrentUser.UserId is null)
+        if (currentUserId is null)
         {
             return;
         }
 
         athleteProfileId = await Db.AthleteProfiles.AsNoTracking()
-            .Where(x => x.UserId == CurrentUser.UserId.Value)
+            .Where(x => x.UserId == currentUserId.Value)
             .Select(x => x.Id)
             .FirstOrDefaultAsync(CancellationToken.None);
+        if (athleteProfileId == Guid.Empty)
+        {
+            assignments = [];
+            requests = [];
+            coaches = [];
+            return;
+        }
 
-        assignments = await WordService.GetAthleteAssignmentsAsync(CancellationToken.None);
-        requests = await WordService.GetWordRequestsAsync(CancellationToken.None);
+        assignments = await (
+            from assignment in Db.AthleteWordAssignments.AsNoTracking()
+            join word in Db.MotivationWords.AsNoTracking() on assignment.MotivationWordId equals word.Id
+            where assignment.AthleteProfileId == athleteProfileId && assignment.IsActive
+            orderby word.Text
+            select new AssignmentRow(word.Text))
+            .ToListAsync(CancellationToken.None);
+
         coaches = await (
             from relation in Db.AthleteRelations.AsNoTracking()
             join user in Db.Users.AsNoTracking() on relation.RelatedUserId equals user.Id
@@ -170,6 +219,19 @@
                   relation.IsActive
             orderby user.FirstName, user.LastName
             select new CoachOption(user.Id, (user.FirstName + " " + user.LastName).Trim()))
+            .ToListAsync(CancellationToken.None);
+
+        requests = await (
+            from request in Db.AthleteWordRequests.AsNoTracking()
+            join coach in Db.Users.AsNoTracking() on request.TargetCoachUserId equals coach.Id
+            where request.RequestedByUserId == currentUserId.Value
+            orderby request.CreatedAt descending
+            select new RequestRow(
+                request.Text,
+                (coach.FirstName + " " + coach.LastName).Trim(),
+                request.Note,
+                request.ReviewNote,
+                request.Status))
             .ToListAsync(CancellationToken.None);
     }
 
@@ -188,6 +250,17 @@
         _ => "pending"
     };
 
+    private static string Normalize(string value) =>
+        value.Trim().ToUpperInvariant()
+            .Replace("İ", "I")
+            .Replace("Ğ", "G")
+            .Replace("Ü", "U")
+            .Replace("Ş", "S")
+            .Replace("Ö", "O")
+            .Replace("Ç", "C");
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private sealed class WordRequestInput
     {
         [Required(ErrorMessage = "Antrenör seçimi zorunludur.")]
@@ -201,5 +274,7 @@
         public string? Note { get; set; }
     }
 
+    private sealed record AssignmentRow(string WordText);
     private sealed record CoachOption(Guid Id, string Name);
+    private sealed record RequestRow(string Text, string CoachName, string? Note, string? ReviewNote, WordRequestStatus Status);
 }

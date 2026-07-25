@@ -3,10 +3,14 @@
 @attribute [Authorize(Roles = RoleNames.Admin)]
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Identity
+@using SporcuGelisim.Domain.Entities
 @using SporcuGelisim.Domain.Enums
 @using SporcuGelisim.Infrastructure.Data
+@using SporcuGelisim.Infrastructure.Identity
 @inject ApplicationDbContext Db
-@inject IAthleteRelationService RelationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
 
 <PageTitle>Sporcu Atama</PageTitle>
 
@@ -31,14 +35,13 @@
         <DataAnnotationsValidator />
         <ValidationSummary class="alert alert-danger" role="alert" />
 
-        <div class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label" for="RelationType">İlişki türü</label>
-                <InputSelect id="RelationType" class="form-select" @bind-Value="input.RelationType">
-                    <option value="@AthleteRelationType.Coach">Antrenör</option>
-                    <option value="@AthleteRelationType.Parent">Ebeveyn</option>
-                </InputSelect>
-            </div>
+        <div class="relation-type-switch" role="tablist" aria-label="İlişki türü">
+            <button class="@(input.RelationType == AthleteRelationType.Coach ? "active" : null)" type="button" @onclick="() => SetRelationType(AthleteRelationType.Coach)">
+                Antrenör
+            </button>
+            <button class="@(input.RelationType == AthleteRelationType.Parent ? "active" : null)" type="button" @onclick="() => SetRelationType(AthleteRelationType.Parent)">
+                Ebeveyn
+            </button>
         </div>
 
         <div class="relation-picker-grid mt-3">
@@ -57,7 +60,7 @@
             </details>
 
             <details class="picker-panel" open>
-                <summary>Hesap seç</summary>
+                <summary>@(input.RelationType == AthleteRelationType.Coach ? "Antrenör seç" : "Ebeveyn seç")</summary>
                 <input class="form-control mt-3" @bind="userSearch" @bind:event="oninput" placeholder="Ad soyad yazın" />
                 <div class="picker-list">
                     @foreach (var user in FilterUsers())
@@ -150,6 +153,14 @@
             : source.Where(x => Contains(x.Name, userSearch));
     }
 
+    private void SetRelationType(AthleteRelationType relationType)
+    {
+        input.RelationType = relationType;
+        input.RelatedUserId = null;
+        selectedUser = null;
+        userSearch = null;
+    }
+
     private void SelectAthlete(AthleteOption athlete)
     {
         selectedAthlete = athlete;
@@ -166,7 +177,34 @@
     {
         try
         {
-            await RelationService.AssignAsync(new AssignAthleteRelationRequest(input.AthleteProfileId!.Value, input.RelatedUserId!.Value, input.RelationType), CancellationToken.None);
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (!authState.User.IsInRole(RoleNames.Admin))
+            {
+                message = "Hata: Sporcu ataması yalnızca Admin hesabıyla yapılabilir.";
+                return;
+            }
+
+            var adminUser = await UserManager.GetUserAsync(authState.User);
+            var exists = await Db.AthleteRelations.AnyAsync(x =>
+                x.AthleteProfileId == input.AthleteProfileId!.Value &&
+                x.RelatedUserId == input.RelatedUserId!.Value &&
+                x.RelationType == input.RelationType &&
+                x.IsActive,
+                CancellationToken.None);
+            if (exists)
+            {
+                message = "Hata: Bu sporcu ile seçilen hesap arasında aktif ilişki zaten var.";
+                return;
+            }
+
+            Db.AthleteRelations.Add(new AthleteRelation
+            {
+                AthleteProfileId = input.AthleteProfileId!.Value,
+                RelatedUserId = input.RelatedUserId!.Value,
+                RelationType = input.RelationType,
+                CreatedByUserId = adminUser?.Id
+            });
+            await Db.SaveChangesAsync(CancellationToken.None);
             input = new();
             selectedAthlete = null;
             selectedUser = null;

@@ -1,17 +1,24 @@
 @page "/coach/words"
+@rendermode InteractiveServer
 @attribute [Authorize(Roles = RoleNames.Coach + "," + RoleNames.Admin)]
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using SporcuGelisim.Domain.Entities
 @using SporcuGelisim.Domain.Enums
-@inject IMotivationWordService WordService
-@inject IAthleteRelationService AthleteRelationService
+@using SporcuGelisim.Infrastructure.Data
+@using SporcuGelisim.Infrastructure.Identity
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
 
 <PageTitle>Kelime Havuzu</PageTitle>
 
 <section class="content-card p-4">
     <div class="page-heading">
-        <p class="dashboard-kicker">Motivasyon</p>
+        <p class="dashboard-kicker">Antrenör</p>
         <h1>Kelime Havuzu</h1>
-        <p>Antrenörler kendi kelimelerini ekleyebilir, düzenleyebilir, kaldırabilir ve erişebildikleri sporculara atayabilir.</p>
+        <p>Kendi kelimelerinizi oluşturun, düzenleyin ve size bağlı sporculara atayın.</p>
     </div>
 
     <StatusMessage Message="@message" />
@@ -30,12 +37,13 @@
                     <label class="form-label" for="WordDescription">Açıklama</label>
                     <InputTextArea id="WordDescription" class="form-control" @bind-Value="input.Description" rows="3" />
                 </div>
-                <AuthorizeView Roles="@RoleNames.Admin" Context="authContext">
+                @if (isAdmin)
+                {
                     <label class="form-check mb-3">
                         <InputCheckbox class="form-check-input" @bind-Value="input.IsGlobal" />
-                        <span class="form-check-label">Global kelime</span>
+                        <span class="form-check-label">Tüm sistemde görünsün</span>
                     </label>
-                </AuthorizeView>
+                }
 
                 <div class="d-flex gap-2">
                     <button class="btn btn-primary" type="submit">@(editingWordId.HasValue ? "Güncelle" : "Ekle")</button>
@@ -74,10 +82,13 @@
                                 <tr>
                                     <td>@word.Text</td>
                                     <td>@word.Description</td>
-                                    <td>@(word.IsGlobal ? "Global" : "Antrenör")</td>
+                                    <td>@(word.IsGlobal ? "Genel" : "Antrenör")</td>
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-secondary me-2" type="button" @onclick="() => EditWord(word)">Düzenle</button>
-                                        <button class="btn btn-sm btn-outline-danger" type="button" @onclick="() => DeactivateWordAsync(word)">Kaldır</button>
+                                        @if (CanEditWord(word))
+                                        {
+                                            <button class="btn btn-sm btn-outline-secondary me-2" type="button" @onclick="() => EditWord(word)">Düzenle</button>
+                                            <button class="btn btn-sm btn-outline-danger" type="button" @onclick="() => DeactivateWordAsync(word)">Kaldır</button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -92,7 +103,7 @@
 <section class="content-card p-4 mt-4">
     <div class="page-heading compact">
         <p class="dashboard-kicker">Sporcu Atama</p>
-        <h2>Kelimeyi Sporcuya Ata</h2>
+        <h2>Kelimeyi sporcuya ata</h2>
     </div>
 
     <EditForm Model="assignmentInput" OnValidSubmit="AssignWordAsync" FormName="word-assign">
@@ -116,7 +127,7 @@
                     <option value="">Seçiniz</option>
                     @foreach (var athlete in athletes)
                     {
-                        <option value="@athlete.Id">@athlete.FullName</option>
+                        <option value="@athlete.Id">@athlete.Name (@athlete.BranchName)</option>
                     }
                 </InputSelect>
             </div>
@@ -130,7 +141,7 @@
     {
         <div class="dashboard-empty mt-3">
             <strong>Atanabilir sporcu yok.</strong>
-            <p>Antrenör hesabının sporculara kelime atayabilmesi için admin tarafından aktif sporcu ilişkisi kurulmalıdır.</p>
+            <p>Admin önce sporcu ile antrenör arasında aktif ilişki kurmalıdır.</p>
         </div>
     }
 
@@ -157,7 +168,7 @@
                             <td>@assignment.AthleteName</td>
                             <td>@assignment.WordText</td>
                             <td class="text-end">
-                                <button class="btn btn-sm btn-outline-danger" type="button" @onclick="() => RemoveAssignmentAsync(assignment.Id)">Atamayı Kaldır</button>
+                                <button class="btn btn-sm btn-outline-danger" type="button" @onclick="() => RemoveAssignmentAsync(assignment.Id)">Atamayı kaldır</button>
                             </td>
                         </tr>
                     }
@@ -216,30 +227,84 @@
 @code {
     private WordInput input = new();
     private AssignmentInput assignmentInput = new();
-    private IReadOnlyList<MotivationWordDto> words = [];
-    private IReadOnlyList<AthleteProfileDto> athletes = [];
-    private IReadOnlyList<WordAssignmentDto> assignments = [];
-    private IReadOnlyList<WordRequestDto> wordRequests = [];
+    private IReadOnlyList<WordRow> words = [];
+    private IReadOnlyList<AthleteOption> athletes = [];
+    private IReadOnlyList<AssignmentRow> assignments = [];
+    private IReadOnlyList<RequestRow> wordRequests = [];
     private Guid? editingWordId;
+    private Guid? currentUserId;
+    private bool isAdmin;
+    private bool isCoach;
     private string? message;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await SetCurrentUserAsync();
+        await LoadAsync();
+    }
+
+    private async Task SetCurrentUserAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        currentUserId = user?.Id;
+        isAdmin = authState.User.IsInRole(RoleNames.Admin);
+        isCoach = authState.User.IsInRole(RoleNames.Coach);
+    }
 
     private async Task SaveWordAsync()
     {
+        if (!EnsureCoachOrAdmin())
+        {
+            return;
+        }
+
         try
         {
+            var normalized = Normalize(input.Text);
+            var duplicate = await Db.MotivationWords.AnyAsync(x =>
+                x.NormalizedText == normalized &&
+                (!editingWordId.HasValue || x.Id != editingWordId.Value),
+                CancellationToken.None);
+            if (duplicate)
+            {
+                message = "Hata: Aynı kelime zaten var.";
+                return;
+            }
+
             if (editingWordId.HasValue)
             {
-                await WordService.UpdateAsync(new UpdateMotivationWordRequest(editingWordId.Value, input.Text, input.Description, null, input.IsGlobal, true, []), CancellationToken.None);
+                var word = await Db.MotivationWords.FirstOrDefaultAsync(x => x.Id == editingWordId.Value, CancellationToken.None);
+                if (word is null || !CanEditWord(word.Id, word.CreatedByUserId))
+                {
+                    message = "Hata: Bu kelimeyi düzenleme yetkiniz yok.";
+                    return;
+                }
+
+                word.Text = input.Text.Trim();
+                word.NormalizedText = normalized;
+                word.Description = Clean(input.Description);
+                word.IsGlobal = isAdmin && input.IsGlobal;
+                word.IsActive = true;
+                word.UpdatedAt = DateTimeOffset.UtcNow;
                 message = "Başarılı: Kelime güncellendi.";
             }
             else
             {
-                await WordService.CreateAsync(new CreateMotivationWordRequest(input.Text, input.Description, null, input.IsGlobal, []), CancellationToken.None);
+                Db.MotivationWords.Add(new MotivationWord
+                {
+                    Text = input.Text.Trim(),
+                    NormalizedText = normalized,
+                    Description = Clean(input.Description),
+                    IsGlobal = isAdmin && input.IsGlobal,
+                    IsActive = true,
+                    CreatedByUserId = currentUserId,
+                    CreatedByRole = isAdmin ? RoleNames.Admin : RoleNames.Coach
+                });
                 message = "Başarılı: Kelime eklendi.";
             }
 
+            await Db.SaveChangesAsync(CancellationToken.None);
             CancelEdit();
             await LoadAsync();
         }
@@ -249,73 +314,174 @@
         }
     }
 
-    private void EditWord(MotivationWordDto word)
+    private void EditWord(WordRow word)
     {
+        if (!CanEditWord(word))
+        {
+            message = "Hata: Bu kelimeyi düzenleme yetkiniz yok.";
+            return;
+        }
+
         editingWordId = word.Id;
         input = new WordInput { Text = word.Text, Description = word.Description, IsGlobal = word.IsGlobal };
     }
 
-    private async Task DeactivateWordAsync(MotivationWordDto word)
+    private async Task DeactivateWordAsync(WordRow word)
     {
-        try
+        if (!EnsureCoachOrAdmin() || !CanEditWord(word))
         {
-            await WordService.UpdateAsync(new UpdateMotivationWordRequest(word.Id, word.Text, word.Description, word.ParentWordId, word.IsGlobal, false, []), CancellationToken.None);
-            message = "Başarılı: Kelime kaldırıldı.";
-            await LoadAsync();
+            message = "Hata: Bu kelimeyi kaldırma yetkiniz yok.";
+            return;
         }
-        catch (Exception ex)
+
+        var entity = await Db.MotivationWords.FirstOrDefaultAsync(x => x.Id == word.Id, CancellationToken.None);
+        if (entity is null)
         {
-            message = $"Hata: {ex.Message}";
+            message = "Hata: Kelime bulunamadı.";
+            return;
         }
+
+        entity.IsActive = false;
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
+        await Db.SaveChangesAsync(CancellationToken.None);
+        message = "Başarılı: Kelime kaldırıldı.";
+        await LoadAsync();
     }
 
     private async Task AssignWordAsync()
     {
+        if (!EnsureCoachOrAdmin())
+        {
+            return;
+        }
+
         if (!assignmentInput.WordId.HasValue || !assignmentInput.AthleteProfileId.HasValue)
         {
             message = "Hata: Kelime ve sporcu seçin.";
             return;
         }
 
-        try
+        if (!athletes.Any(x => x.Id == assignmentInput.AthleteProfileId.Value))
         {
-            await WordService.AssignAthletesAsync(new AssignWordToAthletesRequest(assignmentInput.WordId.Value, [assignmentInput.AthleteProfileId.Value]), CancellationToken.None);
-            assignmentInput = new();
-            message = "Başarılı: Kelime sporcuya atandı.";
-            await LoadAsync();
+            message = "Hata: Bu sporcuya erişim yetkiniz yok.";
+            return;
         }
-        catch (Exception ex)
+
+        var word = words.FirstOrDefault(x => x.Id == assignmentInput.WordId.Value);
+        if (word is null)
         {
-            message = $"Hata: {ex.Message}";
+            message = "Hata: Kelime bulunamadı.";
+            return;
         }
+
+        var exists = await Db.AthleteWordAssignments.AnyAsync(x =>
+            x.AthleteProfileId == assignmentInput.AthleteProfileId.Value &&
+            x.MotivationWordId == assignmentInput.WordId.Value &&
+            x.IsActive,
+            CancellationToken.None);
+        if (!exists)
+        {
+            Db.AthleteWordAssignments.Add(new AthleteWordAssignment
+            {
+                AthleteProfileId = assignmentInput.AthleteProfileId.Value,
+                MotivationWordId = assignmentInput.WordId.Value,
+                AssignedByUserId = currentUserId!.Value
+            });
+            await Db.SaveChangesAsync(CancellationToken.None);
+        }
+
+        assignmentInput = new();
+        message = "Başarılı: Kelime sporcuya atandı.";
+        await LoadAsync();
     }
 
     private async Task RemoveAssignmentAsync(Guid assignmentId)
     {
-        try
+        if (!EnsureCoachOrAdmin())
         {
-            await WordService.RemoveAthleteAssignmentAsync(assignmentId, CancellationToken.None);
-            message = "Başarılı: Kelime ataması kaldırıldı.";
-            await LoadAsync();
+            return;
         }
-        catch (Exception ex)
+
+        var assignment = await Db.AthleteWordAssignments.FirstOrDefaultAsync(x => x.Id == assignmentId, CancellationToken.None);
+        if (assignment is null || (!isAdmin && assignment.AssignedByUserId != currentUserId))
         {
-            message = $"Hata: {ex.Message}";
+            message = "Hata: Bu atamayı kaldırma yetkiniz yok.";
+            return;
         }
+
+        assignment.IsActive = false;
+        assignment.UpdatedAt = DateTimeOffset.UtcNow;
+        await Db.SaveChangesAsync(CancellationToken.None);
+        message = "Başarılı: Kelime ataması kaldırıldı.";
+        await LoadAsync();
     }
 
     private async Task ReviewRequestAsync(Guid requestId, bool approved)
     {
-        try
+        if (!EnsureCoachOrAdmin())
         {
-            await WordService.ReviewWordRequestAsync(new ReviewWordRequest(requestId, approved, null), CancellationToken.None);
-            message = approved ? "Başarılı: Kelime isteği onaylandı." : "Başarılı: Kelime isteği reddedildi.";
-            await LoadAsync();
+            return;
         }
-        catch (Exception ex)
+
+        var request = await Db.AthleteWordRequests.FirstOrDefaultAsync(x => x.Id == requestId, CancellationToken.None);
+        if (request is null || (!isAdmin && request.TargetCoachUserId != currentUserId))
         {
-            message = $"Hata: {ex.Message}";
+            message = "Hata: Bu isteği değerlendirme yetkiniz yok.";
+            return;
         }
+
+        if (request.Status != WordRequestStatus.Pending)
+        {
+            message = "Hata: Bu istek daha önce değerlendirilmiş.";
+            return;
+        }
+
+        request.Status = approved ? WordRequestStatus.Approved : WordRequestStatus.Rejected;
+        request.ReviewedByUserId = currentUserId;
+        request.ReviewedAt = DateTimeOffset.UtcNow;
+        request.UpdatedAt = DateTimeOffset.UtcNow;
+
+        if (approved)
+        {
+            var word = await Db.MotivationWords.FirstOrDefaultAsync(x =>
+                x.NormalizedText == request.NormalizedText &&
+                x.CreatedByUserId == currentUserId,
+                CancellationToken.None);
+            if (word is null)
+            {
+                word = new MotivationWord
+                {
+                    Text = request.Text,
+                    NormalizedText = request.NormalizedText,
+                    Description = request.Note,
+                    IsActive = true,
+                    CreatedByUserId = currentUserId,
+                    CreatedByRole = RoleNames.Coach
+                };
+                Db.MotivationWords.Add(word);
+                await Db.SaveChangesAsync(CancellationToken.None);
+            }
+
+            request.CreatedWordId = word.Id;
+            var exists = await Db.AthleteWordAssignments.AnyAsync(x =>
+                x.AthleteProfileId == request.AthleteProfileId &&
+                x.MotivationWordId == word.Id &&
+                x.IsActive,
+                CancellationToken.None);
+            if (!exists)
+            {
+                Db.AthleteWordAssignments.Add(new AthleteWordAssignment
+                {
+                    AthleteProfileId = request.AthleteProfileId,
+                    MotivationWordId = word.Id,
+                    AssignedByUserId = currentUserId!.Value
+                });
+            }
+        }
+
+        await Db.SaveChangesAsync(CancellationToken.None);
+        message = approved ? "Başarılı: Kelime isteği onaylandı." : "Başarılı: Kelime isteği reddedildi.";
+        await LoadAsync();
     }
 
     private void CancelEdit()
@@ -326,11 +492,93 @@
 
     private async Task LoadAsync()
     {
-        words = await WordService.GetForBranchAsync(null, CancellationToken.None);
-        athletes = await AthleteRelationService.GetRelatedAthletesAsync(CancellationToken.None);
-        assignments = await WordService.GetAthleteAssignmentsAsync(CancellationToken.None);
-        wordRequests = await WordService.GetWordRequestsAsync(CancellationToken.None);
+        if (currentUserId is null)
+        {
+            words = [];
+            athletes = [];
+            assignments = [];
+            wordRequests = [];
+            return;
+        }
+
+        words = await Db.MotivationWords.AsNoTracking()
+            .Where(x => x.IsActive && (isAdmin || x.IsGlobal || x.CreatedByUserId == currentUserId))
+            .OrderBy(x => x.Text)
+            .Select(x => new WordRow(x.Id, x.Text, x.Description, x.IsGlobal, x.CreatedByUserId))
+            .ToListAsync(CancellationToken.None);
+
+        athletes = await LoadAthletesAsync();
+        var athleteIds = athletes.Select(x => x.Id).ToHashSet();
+        assignments = await (
+            from assignment in Db.AthleteWordAssignments.AsNoTracking()
+            join word in Db.MotivationWords.AsNoTracking() on assignment.MotivationWordId equals word.Id
+            join profile in Db.AthleteProfiles.AsNoTracking() on assignment.AthleteProfileId equals profile.Id
+            join user in Db.Users.AsNoTracking() on profile.UserId equals user.Id
+            where assignment.IsActive &&
+                  athleteIds.Contains(assignment.AthleteProfileId) &&
+                  (isAdmin || assignment.AssignedByUserId == currentUserId)
+            orderby user.FirstName, user.LastName, word.Text
+            select new AssignmentRow(assignment.Id, assignment.AthleteProfileId, (user.FirstName + " " + user.LastName).Trim(), word.Text))
+            .ToListAsync(CancellationToken.None);
+
+        wordRequests = await (
+            from request in Db.AthleteWordRequests.AsNoTracking()
+            join profile in Db.AthleteProfiles.AsNoTracking() on request.AthleteProfileId equals profile.Id
+            join athleteUser in Db.Users.AsNoTracking() on profile.UserId equals athleteUser.Id
+            where isAdmin || request.TargetCoachUserId == currentUserId
+            orderby request.CreatedAt descending
+            select new RequestRow(
+                request.Id,
+                request.AthleteProfileId,
+                (athleteUser.FirstName + " " + athleteUser.LastName).Trim(),
+                request.Text,
+                request.Note,
+                request.Status))
+            .ToListAsync(CancellationToken.None);
     }
+
+    private async Task<IReadOnlyList<AthleteOption>> LoadAthletesAsync()
+    {
+        var query =
+            from profile in Db.AthleteProfiles.AsNoTracking()
+            join user in Db.Users.AsNoTracking() on profile.UserId equals user.Id
+            join branch in Db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
+            from branch in branchJoin.DefaultIfEmpty()
+            select new { profile, user, branch };
+
+        if (!isAdmin)
+        {
+            query =
+                from row in query
+                join relation in Db.AthleteRelations.AsNoTracking() on row.profile.Id equals relation.AthleteProfileId
+                where relation.RelatedUserId == currentUserId &&
+                      relation.RelationType == AthleteRelationType.Coach &&
+                      relation.IsActive
+                select row;
+        }
+
+        return await query
+            .OrderBy(x => x.user.FirstName)
+            .ThenBy(x => x.user.LastName)
+            .Select(x => new AthleteOption(x.profile.Id, (x.user.FirstName + " " + x.user.LastName).Trim(), x.branch == null ? "Branş girilmemiş" : x.branch.Name))
+            .ToListAsync(CancellationToken.None);
+    }
+
+    private bool EnsureCoachOrAdmin()
+    {
+        if (currentUserId is not null && (isCoach || isAdmin))
+        {
+            return true;
+        }
+
+        message = "Hata: Bu işlem için antrenör veya admin hesabıyla giriş yapmanız gerekir.";
+        return false;
+    }
+
+    private bool CanEditWord(WordRow word) => CanEditWord(word.Id, word.CreatedByUserId);
+
+    private bool CanEditWord(Guid wordId, Guid? createdByUserId) =>
+        isAdmin || createdByUserId == currentUserId;
 
     private static string StatusText(WordRequestStatus status) => status switch
     {
@@ -346,6 +594,17 @@
         WordRequestStatus.Rejected => "passive",
         _ => "pending"
     };
+
+    private static string Normalize(string value) =>
+        value.Trim().ToUpperInvariant()
+            .Replace("İ", "I")
+            .Replace("Ğ", "G")
+            .Replace("Ü", "U")
+            .Replace("Ş", "S")
+            .Replace("Ö", "O")
+            .Replace("Ç", "C");
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private sealed class WordInput
     {
@@ -364,4 +623,9 @@
         public Guid? WordId { get; set; }
         public Guid? AthleteProfileId { get; set; }
     }
+
+    private sealed record WordRow(Guid Id, string Text, string? Description, bool IsGlobal, Guid? CreatedByUserId);
+    private sealed record AthleteOption(Guid Id, string Name, string BranchName);
+    private sealed record AssignmentRow(Guid Id, Guid AthleteProfileId, string AthleteName, string WordText);
+    private sealed record RequestRow(Guid Id, Guid AthleteProfileId, string AthleteName, string Text, string? Note, WordRequestStatus Status);
 }

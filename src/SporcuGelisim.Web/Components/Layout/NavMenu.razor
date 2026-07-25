@@ -46,6 +46,11 @@
             <NavLink class="nav-link" href="/athlete/words">Kelime Havuzum</NavLink>
         </li>
     </AuthorizeView>
+    <AuthorizeView Roles="@RoleNames.Parent">
+        <li class="nav-item">
+            <NavLink class="nav-link" href="/parent/athletes">Sporcularım</NavLink>
+        </li>
+    </AuthorizeView>
     <AuthorizeView>
         <Authorized>
             <li class="nav-item">

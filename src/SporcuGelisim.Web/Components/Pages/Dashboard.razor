@@ -120,6 +120,13 @@ else
                     </a>
                 </AuthorizeView>
 
+                <AuthorizeView Roles="@RoleNames.Parent">
+                    <a class="dashboard-action primary-action" href="/parent/athletes">
+                        <strong>Sporcularımı aç</strong>
+                        <span>Size bağlı sporcuların oturum, kelime ve geri bildirim bilgilerini inceleyin.</span>
+                    </a>
+                </AuthorizeView>
+
                 <a class="dashboard-action" href="/feedback">
                     <strong>Geri bildirimler</strong>
                     <span>Sporcu gelişim notlarını ve yorumları takip edin.</span>

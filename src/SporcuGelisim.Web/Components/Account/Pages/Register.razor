@@ -8,6 +8,7 @@
 @using SporcuGelisim.Infrastructure.Identity
 
 @inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole<Guid>> RoleManager
 @inject IUserStore<ApplicationUser> UserStore
 @inject ApplicationDbContext Db
 @inject ILogger<Register> Logger
@@ -99,6 +100,15 @@
         {
             message = "Hata: Geçerli bir hesap türü seçin.";
             return;
+        }
+        if (!await RoleManager.RoleExistsAsync(Input.Role))
+        {
+            var createRole = await RoleManager.CreateAsync(new IdentityRole<Guid>(Input.Role));
+            if (!createRole.Succeeded)
+            {
+                message = $"Hata: Rol oluşturulamadı. {string.Join(", ", createRole.Errors.Select(error => error.Description))}";
+                return;
+            }
         }
 
         var user = CreateUser();
