@@ -1,18 +1,19 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @layout SporcuGelisim.Web.Components.Layout.MainLayout
 
-<h1>Manage your account</h1>
-
-<div>
-    <h2>Change your account settings</h2>
-    <hr />
-    <div class="row">
-        <div class="col-lg-3">
-            <ManageNavMenu />
-        </div>
-        <div class="col-lg-9">
-            @Body
-        </div>
+<section class="page-hero compact-hero account-hero">
+    <div>
+        <p class="dashboard-kicker">Hesap</p>
+        <h1>Hesap Ayarları</h1>
+        <p>Giriş bilgilerinizi, iletişim tercihlerinizi ve güvenlik ayarlarınızı buradan yönetin.</p>
     </div>
-</div>
+</section>
 
+<div class="account-manage-layout">
+    <aside>
+        <ManageNavMenu />
+    </aside>
+    <section class="content-card p-4">
+        @Body
+    </section>
+</div>

@@ -29,6 +29,17 @@ public sealed class AuthorizationBusinessRuleTests
     }
 
     [Fact]
+    public async Task Coach_lists_only_related_athletes_with_branch()
+    {
+        await using var fixture = await TestFixture.CreateAsync(RoleNames.Coach, TestFixture.CoachUserId);
+        var service = new AthleteRelationService(fixture.Db, fixture.CurrentUser, fixture.Audit);
+        var athletes = await service.GetRelatedAthletesAsync(CancellationToken.None);
+        var athlete = Assert.Single(athletes);
+        Assert.Equal(TestFixture.AthleteProfile1Id, athlete.Id);
+        Assert.Equal("Futbol", athlete.BranchName);
+    }
+
+    [Fact]
     public async Task Parent_cannot_access_unrelated_athlete_profile()
     {
         await using var fixture = await TestFixture.CreateAsync(RoleNames.Parent, TestFixture.ParentUserId);
@@ -297,7 +308,7 @@ public sealed class AuthorizationBusinessRuleTests
                 User(CoachUserId, "Koç", "Bir"),
                 User(ParentUserId, "Ebeveyn", "Bir"));
             db.AthleteProfiles.AddRange(
-                new AthleteProfile { Id = AthleteProfile1Id, UserId = AthleteUser1Id },
+                new AthleteProfile { Id = AthleteProfile1Id, UserId = AthleteUser1Id, PrimaryBranchId = ChildBranchId },
                 new AthleteProfile { Id = AthleteProfile2Id, UserId = AthleteUser2Id });
             db.SportBranches.AddRange(
                 new SportBranch { Id = RootBranchId, Name = "Spor", Slug = "spor" },

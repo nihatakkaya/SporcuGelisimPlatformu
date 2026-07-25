@@ -13,17 +13,32 @@
 }
 else
 {
-    <section class="dashboard-hero">
+    <section class="page-hero dashboard-admin-hero">
         <div>
             <p class="dashboard-kicker">Sporcu Gelişim Platformu</p>
-            <h1>Yönetim Paneli</h1>
-            <p class="dashboard-intro">Sporcu kayıtları, branşlar, oturumlar ve motivasyon kelimeleri için genel durumu buradan takip edebilirsiniz.</p>
+            <AuthorizeView Roles="@RoleNames.Admin">
+                <h1>Yönetim Merkezi</h1>
+                <p>Hesap oluşturma, branş düzenleme, raporlar ve genel sistem takibi için ana ekran.</p>
+            </AuthorizeView>
+            <AuthorizeView Roles="@RoleNames.Coach">
+                <h1>Antrenör Paneli</h1>
+                <p>Size bağlı sporcuları inceleyin, kelime havuzunuzu yönetin ve gelişim notlarını takip edin.</p>
+            </AuthorizeView>
+            <AuthorizeView Roles="@RoleNames.Athlete">
+                <h1>Sporcu Paneli</h1>
+                <p>Profil bilgilerinizi tamamlayın, oturumlarınızı ve geri bildirimlerinizi takip edin.</p>
+            </AuthorizeView>
+            <AuthorizeView Roles="@RoleNames.Parent">
+                <h1>Ebeveyn Paneli</h1>
+                <p>İlişkili sporcuların gelişim notlarını ve geri bildirimlerini takip edin.</p>
+            </AuthorizeView>
         </div>
         <AuthorizeView>
             <Authorized>
-                <div class="dashboard-user">
+                <div class="hero-account-card">
                     <span>Aktif hesap</span>
                     <strong>@context.User.Identity?.Name</strong>
+                    <a href="Account/Manage">Hesap bilgileri</a>
                 </div>
             </Authorized>
         </AuthorizeView>
@@ -39,7 +54,7 @@ else
             <strong>@summary.CoachCount</strong>
         </article>
         <article class="dashboard-stat">
-            <span>Veli</span>
+            <span>Ebeveyn</span>
             <strong>@summary.ParentCount</strong>
         </article>
         <article class="dashboard-stat">
@@ -52,47 +67,51 @@ else
         <section class="dashboard-panel">
             <div class="dashboard-panel-header">
                 <div>
-                    <p class="dashboard-kicker">Başlangıç</p>
-                    <h2>Sıradaki işlemler</h2>
+                    <p class="dashboard-kicker">Hızlı İşlemler</p>
+                    <h2>Bugün ne yapılacak?</h2>
                 </div>
             </div>
 
             <div class="dashboard-actions">
                 <AuthorizeView Roles="@RoleNames.Admin">
+                    <a class="dashboard-action primary-action" href="Account/Register">
+                        <strong>Kayıt oluştur</strong>
+                        <span>Sporcu, antrenör, ebeveyn veya admin hesabı açın.</span>
+                    </a>
                     <a class="dashboard-action" href="admin/branches">
                         <strong>Branşları yönet</strong>
                         <span>Spor dallarını ve alt branşları düzenleyin.</span>
                     </a>
                     <a class="dashboard-action" href="admin/reports">
                         <strong>Raporları incele</strong>
-                        <span>Branş ve kelime kullanım özetlerini görüntüleyin.</span>
-                    </a>
-                    <a class="dashboard-action" href="Account/Register">
-                        <strong>Kayıt oluştur</strong>
-                        <span>Sporcu, antrenör veya veli hesabı oluşturun.</span>
+                        <span>Branş dağılımı ve kelime kullanım özetlerini görün.</span>
                     </a>
                 </AuthorizeView>
 
                 <AuthorizeView Roles="@RoleNames.Coach">
+                    <a class="dashboard-action primary-action" href="coach/athletes">
+                        <strong>Sporcularımı aç</strong>
+                        <span>Size bağlı sporcuların bilgilerini ve oturumlarını inceleyin.</span>
+                    </a>
                     <a class="dashboard-action" href="coach/words">
                         <strong>Kelime havuzunu yönet</strong>
-                        <span>Antrenman süreçlerinde kullanılacak motivasyon kelimelerini hazırlayın.</span>
+                        <span>Kelimeleri ekleyin, düzenleyin ve sporculara atayın.</span>
                     </a>
                 </AuthorizeView>
 
                 <AuthorizeView Roles="@RoleNames.Athlete">
-                    <a class="dashboard-action" href="athlete/profile">
+                    <a class="dashboard-action primary-action" href="athlete/profile">
                         <strong>Profilimi tamamla</strong>
                         <span>TC kimlik, telefon, adres, branş ve görsel bilgilerinizi güncelleyin.</span>
                     </a>
                     <a class="dashboard-action" href="athlete/sessions">
                         <strong>Oturumlarımı aç</strong>
-                        <span>Size ait antrenman ve gelişim oturumlarını görüntüleyin.</span>
+                        <span>Antrenman ve gelişim oturumlarınızı görüntüleyin.</span>
                     </a>
                 </AuthorizeView>
 
                 <a class="dashboard-action" href="feedback">
-                    <strong>Geri bildirimleri aç</strong>
+                    <strong>Geri bildirimler</strong>
                     <span>Sporcu gelişim notlarını ve yorumları takip edin.</span>
                 </a>
             </div>
@@ -101,7 +120,7 @@ else
         <section class="dashboard-panel">
             <div class="dashboard-panel-header">
                 <div>
-                    <p class="dashboard-kicker">Veri Durumu</p>
+                    <p class="dashboard-kicker">Sistem Durumu</p>
                     <h2>Kurulum özeti</h2>
                 </div>
             </div>
@@ -110,15 +129,15 @@ else
             {
                 <div class="dashboard-empty">
                     <strong>Henüz sporcu ve oturum kaydı yok.</strong>
-                    <p>Önce kullanıcı kaydı oluşturup sporcu profillerini tamamlayın. Ardından oturum ve geri bildirim akışı kullanılabilir hale gelir.</p>
+                    <p>Önce kayıt oluşturma ekranından kullanıcı açın, ardından sporcu profilini ve ilişkileri tamamlayın.</p>
                 </div>
             }
             else
             {
                 <ul class="dashboard-checklist">
-                    <li>Sporcu kayıtları oluşturuldu.</li>
-                    <li>Oturum kayıtları takip ediliyor.</li>
-                    <li>Rapor ekranları güncel verilerle çalışıyor.</li>
+                    <li>Sporcu kayıtları takip ediliyor.</li>
+                    <li>Rol bazlı ekranlar aktif.</li>
+                    <li>Rapor ve geri bildirim akışı hazır.</li>
                 </ul>
             }
         </section>

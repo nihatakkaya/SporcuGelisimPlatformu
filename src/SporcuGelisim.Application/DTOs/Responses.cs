@@ -16,7 +16,8 @@ public sealed record AthleteProfileDto(
     string? ParentPhoneNumber,
     string? Address,
     string? Biography,
-    DateOnly? BirthDate);
+    DateOnly? BirthDate,
+    string? ProfilePhotoPath);
 public sealed record AthleteRelationDto(Guid Id, Guid AthleteProfileId, Guid RelatedUserId, AthleteRelationType RelationType, bool IsActive);
 public sealed record AthleteSessionDto(Guid Id, Guid AthleteProfileId, string Title, int SessionNumber, DateTimeOffset SessionDate, SessionStatus Status);
 public sealed record SessionWordDto(Guid Id, Guid SessionId, Guid MotivationWordId, string WordTextSnapshot, SelectionSource SelectionSource);

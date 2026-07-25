@@ -3,31 +3,93 @@
 @inject IDashboardService DashboardService
 
 <PageTitle>Raporlar</PageTitle>
-<h1>Raporlar</h1>
 
-<div class="row g-4">
-    <div class="col-lg-6">
-        <h2 class="h5">Branş başına sporcu</h2>
-        <table class="table table-sm">
-            <tbody>
-                @foreach (var row in athletesByBranch)
-                {
-                    <tr><td>@row.Label</td><td>@row.Count</td></tr>
-                }
-            </tbody>
-        </table>
+<section class="page-hero compact-hero">
+    <div>
+        <p class="dashboard-kicker">Admin</p>
+        <h1>Raporlar</h1>
+        <p>Branş dağılımı ve kelime kullanımını hızlıca inceleyin. Veriler canlı kayıtlardan oluşturulur.</p>
     </div>
-    <div class="col-lg-6">
-        <h2 class="h5">En çok seçilen kelimeler</h2>
-        <table class="table table-sm">
-            <tbody>
-                @foreach (var row in topWords)
-                {
-                    <tr><td>@row.Label</td><td>@row.Count</td></tr>
-                }
-            </tbody>
-        </table>
+    <div class="hero-badge">
+        <span>Rapor alanı</span>
+        <strong>2</strong>
     </div>
+</section>
+
+<div class="report-grid">
+    <section class="content-card p-4">
+        <div class="section-title-row">
+            <h2 class="h4">Branş başına sporcu</h2>
+            <span>@athletesByBranch.Sum(x => x.Count) sporcu</span>
+        </div>
+
+        @if (athletesByBranch.Count == 0)
+        {
+            <div class="dashboard-empty">
+                <strong>Henüz branş raporu yok.</strong>
+                <p>Sporcu profillerine branş girildiğinde bu tablo dolacaktır.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table admin-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Branş</th>
+                            <th class="text-end">Sporcu</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in athletesByBranch)
+                        {
+                            <tr>
+                                <td><strong>@row.Label</strong></td>
+                                <td class="text-end">@row.Count</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section class="content-card p-4">
+        <div class="section-title-row">
+            <h2 class="h4">En çok seçilen kelimeler</h2>
+            <span>@topWords.Sum(x => x.Count) seçim</span>
+        </div>
+
+        @if (topWords.Count == 0)
+        {
+            <div class="dashboard-empty">
+                <strong>Henüz kelime kullanımı yok.</strong>
+                <p>Sporcu oturumlarında kelime seçildikçe bu tablo güncellenecektir.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table admin-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Kelime</th>
+                            <th class="text-end">Kullanım</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in topWords)
+                        {
+                            <tr>
+                                <td><strong>@row.Label</strong></td>
+                                <td class="text-end">@row.Count</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
 </div>
 
 @code {

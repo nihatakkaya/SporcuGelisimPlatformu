@@ -364,6 +364,85 @@ a,
     font-weight: 800;
 }
 
+.page-hero {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 18px;
+    padding: 30px;
+    border: 1px solid #dfe8ef;
+    border-radius: 8px;
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(239, 248, 247, 0.94)),
+        linear-gradient(90deg, rgba(0, 63, 161, 0.08), rgba(27, 172, 80, 0.08));
+    box-shadow: 0 12px 30px rgba(31, 71, 133, 0.08);
+}
+
+.page-hero.compact-hero {
+    min-height: 170px;
+}
+
+.page-hero h1 {
+    margin: 0;
+    color: #102844;
+    font-size: 2.25rem;
+    font-weight: 900;
+    line-height: 1.15;
+}
+
+.page-hero p:not(.dashboard-kicker) {
+    max-width: 720px;
+    margin: 12px 0 0;
+    color: #52616f;
+    font-weight: 650;
+    line-height: 1.55;
+}
+
+.hero-badge,
+.hero-account-card {
+    min-width: 190px;
+    padding: 16px;
+    border: 1px solid #d8e5ee;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.hero-badge span,
+.hero-badge strong,
+.hero-account-card span,
+.hero-account-card strong,
+.hero-account-card a {
+    display: block;
+}
+
+.hero-badge span,
+.hero-account-card span {
+    color: var(--school-gray);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.hero-badge strong {
+    margin-top: 6px;
+    color: var(--school-blue);
+    font-size: 2rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.hero-account-card strong {
+    margin-top: 4px;
+    color: var(--school-blue-dark);
+    overflow-wrap: anywhere;
+}
+
+.hero-account-card a {
+    margin-top: 10px;
+    font-weight: 800;
+    text-decoration: none;
+}
+
 .dashboard-hero {
     display: flex;
     align-items: flex-end;
@@ -516,6 +595,11 @@ a,
     transform: translateY(-2px);
 }
 
+.dashboard-action.primary-action {
+    border-color: rgba(27, 172, 80, 0.35);
+    background: #f5fbf7;
+}
+
 .dashboard-action strong,
 .dashboard-action span {
     display: block;
@@ -558,6 +642,314 @@ a,
     color: #4e5d68;
     font-weight: 700;
     line-height: 1.8;
+}
+
+.coach-athlete-layout {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.34fr) minmax(0, 0.66fr);
+    gap: 18px;
+}
+
+.athlete-list-panel,
+.athlete-detail-panel {
+    border: 1px solid #e4ebf2;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(31, 71, 133, 0.06);
+}
+
+.athlete-list-panel {
+    padding: 16px;
+}
+
+.list-toolbar label {
+    display: block;
+    margin-bottom: 8px;
+    color: #4f5f6d;
+    font-weight: 800;
+}
+
+.athlete-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.athlete-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #e1e8ef;
+    border-radius: 8px;
+    background: #fbfcfe;
+    color: inherit;
+    text-align: left;
+}
+
+.athlete-list-item.selected,
+.athlete-list-item:hover {
+    border-color: var(--school-teal);
+    background: #f2fbf9;
+}
+
+.athlete-avatar,
+.athlete-photo-placeholder {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    border-radius: 8px;
+    background: var(--school-blue-dark);
+    color: #fff;
+    font-weight: 900;
+}
+
+.athlete-avatar {
+    width: 44px;
+    height: 44px;
+}
+
+.athlete-list-item strong,
+.athlete-list-item small {
+    display: block;
+}
+
+.athlete-list-item strong {
+    color: #102844;
+    font-weight: 900;
+}
+
+.athlete-list-item small {
+    margin-top: 2px;
+    color: #667582;
+    font-weight: 700;
+}
+
+.athlete-detail-panel {
+    padding: 24px;
+}
+
+.athlete-profile-top {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e6edf3;
+}
+
+.athlete-profile-top img,
+.athlete-photo-placeholder {
+    width: 104px;
+    height: 104px;
+    object-fit: cover;
+}
+
+.athlete-profile-top h2 {
+    margin: 0;
+    color: #102844;
+    font-size: 1.75rem;
+    font-weight: 900;
+}
+
+.athlete-profile-top p:not(.dashboard-kicker) {
+    margin: 8px 0 0;
+    color: #596976;
+    line-height: 1.5;
+}
+
+.detail-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.detail-stat-grid div {
+    min-height: 86px;
+    padding: 14px;
+    border: 1px solid #e4ebf2;
+    border-radius: 8px;
+    background: #fbfcfe;
+}
+
+.detail-stat-grid span,
+.detail-stat-grid strong {
+    display: block;
+}
+
+.detail-stat-grid span {
+    color: #687783;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.detail-stat-grid strong {
+    margin-top: 6px;
+    color: #102844;
+    font-weight: 900;
+    overflow-wrap: anywhere;
+}
+
+.detail-sections,
+.report-grid,
+.account-manage-layout {
+    display: grid;
+    gap: 18px;
+}
+
+.detail-sections {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 18px;
+}
+
+.detail-sections section {
+    padding: 18px;
+    border: 1px solid #e4ebf2;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.detail-sections .wide-section {
+    grid-column: 1 / -1;
+}
+
+.section-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.section-title-row h2,
+.section-title-row h3 {
+    margin: 0;
+    color: #102844;
+    font-weight: 900;
+}
+
+.section-title-row span {
+    color: var(--school-teal);
+    font-size: 0.86rem;
+    font-weight: 900;
+}
+
+.compact-list {
+    display: grid;
+    gap: 10px;
+}
+
+.compact-list div {
+    padding: 12px;
+    border: 1px solid #e4ebf2;
+    border-radius: 8px;
+    background: #fbfcfe;
+}
+
+.compact-list strong,
+.compact-list span {
+    display: block;
+}
+
+.compact-list strong {
+    color: #102844;
+    font-weight: 900;
+}
+
+.compact-list span,
+.muted-line {
+    color: #667582;
+    line-height: 1.45;
+}
+
+.muted-line {
+    margin: 0;
+    font-weight: 650;
+}
+
+.word-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.word-chip-list span,
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 0.86rem;
+    font-weight: 900;
+}
+
+.word-chip-list span {
+    background: #edf7f5;
+    color: var(--school-teal);
+}
+
+.status-pill.active {
+    background: #edf8f1;
+    color: var(--school-green-dark);
+}
+
+.status-pill.passive {
+    background: #f6eef0;
+    color: #a32736;
+}
+
+.report-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-table {
+    margin-bottom: 0;
+}
+
+.admin-table thead th {
+    color: #536372;
+    font-size: 0.82rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.admin-table tbody td {
+    color: #344452;
+}
+
+.account-link {
+    font-weight: 900;
+}
+
+.account-manage-layout {
+    grid-template-columns: minmax(220px, 0.25fr) minmax(0, 0.75fr);
+}
+
+.account-manage-menu {
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid #e4ebf2;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(31, 71, 133, 0.06);
+}
+
+.account-manage-menu .nav-link {
+    color: #415160;
+    font-weight: 850;
+}
+
+.account-manage-menu .nav-link.active {
+    background: var(--school-blue-dark);
+}
+
+.account-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
 }
 
 .validation-message {
@@ -628,27 +1020,43 @@ a,
     }
 
     .dashboard-hero,
+    .page-hero,
     .dashboard-panel {
         padding: 20px;
     }
 
     .dashboard-hero,
+    .page-hero,
     .dashboard-grid {
         grid-template-columns: 1fr;
     }
 
-    .dashboard-hero {
+    .dashboard-hero,
+    .page-hero {
         display: block;
     }
 
-    .dashboard-user {
+    .dashboard-user,
+    .hero-badge,
+    .hero-account-card {
         min-width: 0;
         margin-top: 18px;
     }
 
     .dashboard-stats,
-    .dashboard-actions {
+    .dashboard-actions,
+    .coach-athlete-layout,
+    .detail-stat-grid,
+    .detail-sections,
+    .report-grid,
+    .account-manage-layout,
+    .account-form-grid {
         grid-template-columns: 1fr;
+    }
+
+    .athlete-profile-top {
+        align-items: flex-start;
+        flex-direction: column;
     }
 }
 
@@ -671,19 +1079,30 @@ a,
     }
 
     .dashboard-hero,
+    .page-hero,
     .dashboard-grid {
         grid-template-columns: 1fr;
     }
 
-    .dashboard-hero {
+    .dashboard-hero,
+    .page-hero {
         display: block;
     }
 
-    .dashboard-user {
+    .dashboard-user,
+    .hero-badge,
+    .hero-account-card {
         margin-top: 18px;
     }
 
     .dashboard-stats {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .coach-athlete-layout,
+    .detail-stat-grid,
+    .report-grid,
+    .account-manage-layout {
+        grid-template-columns: 1fr;
     }
 }

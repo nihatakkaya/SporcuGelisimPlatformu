@@ -1,0 +1,277 @@
+@page "/coach/athletes"
+@page "/coach/athletes/{SelectedAthleteId:guid}"
+@attribute [Authorize(Roles = RoleNames.Coach + "," + RoleNames.Admin)]
+@using SporcuGelisim.Domain.Enums
+@inject IAthleteRelationService AthleteRelationService
+@inject IAthleteProfileService AthleteProfileService
+@inject IAthleteSessionService SessionService
+@inject IFeedbackService FeedbackService
+@inject IMotivationWordService WordService
+@inject NavigationManager Navigation
+
+<PageTitle>Sporcularım</PageTitle>
+
+<section class="page-hero compact-hero">
+    <div>
+        <p class="dashboard-kicker">Antrenör Takibi</p>
+        <h1>Sporcularım</h1>
+        <p>Size bağlı sporcuları, branşlarını, iletişim bilgilerini, oturumlarını ve atanmış kelimelerini tek ekrandan takip edin.</p>
+    </div>
+    <div class="hero-badge">
+        <span>Toplam sporcu</span>
+        <strong>@athletes.Count</strong>
+    </div>
+</section>
+
+@if (isLoading)
+{
+    <section class="dashboard-loading" aria-live="polite">
+        <div class="spinner-border text-primary" role="status"></div>
+        <span>Sporcular yükleniyor...</span>
+    </section>
+}
+else if (athletes.Count == 0)
+{
+    <section class="content-card p-4">
+        <div class="dashboard-empty">
+            <strong>Henüz size bağlı sporcu yok.</strong>
+            <p>Bu ekranın dolması için adminin sporcu ile antrenör arasında aktif ilişki kurması gerekir.</p>
+        </div>
+    </section>
+}
+else
+{
+    <section class="coach-athlete-layout">
+        <aside class="athlete-list-panel">
+            <div class="list-toolbar">
+                <label for="AthleteSearch">Sporcu ara</label>
+                <input id="AthleteSearch" class="form-control" @bind="searchText" @bind:event="oninput" placeholder="Ad, branş veya telefon" />
+            </div>
+
+            <div class="athlete-list">
+                @foreach (var athlete in filteredAthletes)
+                {
+                    var isSelected = selectedAthlete?.Id == athlete.Id;
+                    <button type="button" class="athlete-list-item @(isSelected ? "selected" : null)" @onclick="() => SelectAthleteAsync(athlete.Id)">
+                        <span class="athlete-avatar">@Initials(athlete)</span>
+                        <span>
+                            <strong>@DisplayName(athlete)</strong>
+                            <small>@DisplayBranch(athlete)</small>
+                        </span>
+                    </button>
+                }
+            </div>
+        </aside>
+
+        <article class="athlete-detail-panel">
+            @if (selectedAthlete is null)
+            {
+                <div class="dashboard-empty">
+                    <strong>Sporcu seçin.</strong>
+                    <p>Detayları görmek için soldaki listeden bir sporcu seçin.</p>
+                </div>
+            }
+            else
+            {
+                <div class="athlete-profile-top">
+                    @if (!string.IsNullOrWhiteSpace(selectedAthlete.ProfilePhotoPath))
+                    {
+                        <img src="@PhotoUrl(selectedAthlete.ProfilePhotoPath)" alt="@DisplayName(selectedAthlete)" />
+                    }
+                    else
+                    {
+                        <div class="athlete-photo-placeholder">@Initials(selectedAthlete)</div>
+                    }
+                    <div>
+                        <p class="dashboard-kicker">@DisplayBranch(selectedAthlete)</p>
+                        <h2>@DisplayName(selectedAthlete)</h2>
+                        <p>@(selectedAthlete.Biography ?? "Sporcu notu henüz girilmemiş.")</p>
+                    </div>
+                </div>
+
+                <div class="detail-stat-grid">
+                    <div>
+                        <span>TC kimlik no</span>
+                        <strong>@DisplayValue(selectedAthlete.NationalIdentityNumber)</strong>
+                    </div>
+                    <div>
+                        <span>Telefon</span>
+                        <strong>@DisplayValue(selectedAthlete.PhoneNumber)</strong>
+                    </div>
+                    <div>
+                        <span>2. telefon</span>
+                        <strong>@DisplayValue(selectedAthlete.SecondaryPhoneNumber)</strong>
+                    </div>
+                    <div>
+                        <span>Ebeveyn no</span>
+                        <strong>@DisplayValue(selectedAthlete.ParentPhoneNumber)</strong>
+                    </div>
+                    <div>
+                        <span>Doğum tarihi</span>
+                        <strong>@(selectedAthlete.BirthDate?.ToString("dd.MM.yyyy") ?? "Girilmemiş")</strong>
+                    </div>
+                    <div>
+                        <span>Adres</span>
+                        <strong>@DisplayValue(selectedAthlete.Address)</strong>
+                    </div>
+                </div>
+
+                <div class="detail-sections">
+                    <section>
+                        <div class="section-title-row">
+                            <h3>Oturumlar</h3>
+                            <span>@sessions.Count kayıt</span>
+                        </div>
+                        @if (sessions.Count == 0)
+                        {
+                            <p class="muted-line">Bu sporcu için oturum kaydı yok.</p>
+                        }
+                        else
+                        {
+                            <div class="compact-list">
+                                @foreach (var session in sessions.Take(5))
+                                {
+                                    <div>
+                                        <strong>@session.Title</strong>
+                                        <span>@session.SessionDate.ToLocalTime().ToString("dd.MM.yyyy") · @StatusText(session.Status)</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </section>
+
+                    <section>
+                        <div class="section-title-row">
+                            <h3>Atanmış Kelimeler</h3>
+                            <span>@assignedWords.Count kayıt</span>
+                        </div>
+                        @if (assignedWords.Count == 0)
+                        {
+                            <p class="muted-line">Bu sporcuya atanmış kelime yok.</p>
+                        }
+                        else
+                        {
+                            <div class="word-chip-list">
+                                @foreach (var assignment in assignedWords)
+                                {
+                                    <span>@assignment.WordText</span>
+                                }
+                            </div>
+                        }
+                    </section>
+
+                    <section class="wide-section">
+                        <div class="section-title-row">
+                            <h3>Geri Bildirimler</h3>
+                            <span>@feedbacks.Count kayıt</span>
+                        </div>
+                        @if (feedbacks.Count == 0)
+                        {
+                            <p class="muted-line">Bu sporcu için görüntüleyebileceğiniz geri bildirim yok.</p>
+                        }
+                        else
+                        {
+                            <div class="compact-list">
+                                @foreach (var feedback in feedbacks.Take(4))
+                                {
+                                    <div>
+                                        <strong>@feedback.FeedbackDate.ToLocalTime().ToString("dd.MM.yyyy")</strong>
+                                        <span>@feedback.Comment</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </section>
+                </div>
+            }
+        </article>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public Guid? SelectedAthleteId { get; set; }
+
+    private IReadOnlyList<AthleteProfileDto> athletes = [];
+    private IReadOnlyList<AthleteSessionDto> sessions = [];
+    private IReadOnlyList<FeedbackDto> feedbacks = [];
+    private IReadOnlyList<WordAssignmentDto> allAssignments = [];
+    private IReadOnlyList<WordAssignmentDto> assignedWords = [];
+    private AthleteProfileDto? selectedAthlete;
+    private string? searchText;
+    private bool isLoading = true;
+
+    private IEnumerable<AthleteProfileDto> filteredAthletes =>
+        string.IsNullOrWhiteSpace(searchText)
+            ? athletes
+            : athletes.Where(x =>
+                Contains(x.FullName, searchText) ||
+                Contains(x.BranchName, searchText) ||
+                Contains(x.PhoneNumber, searchText));
+
+    protected override async Task OnInitializedAsync()
+    {
+        athletes = await AthleteRelationService.GetRelatedAthletesAsync(CancellationToken.None);
+        allAssignments = await WordService.GetAthleteAssignmentsAsync(CancellationToken.None);
+
+        var selectedId = SelectedAthleteId ?? athletes.FirstOrDefault()?.Id;
+        if (selectedId.HasValue)
+        {
+            await LoadSelectedAsync(selectedId.Value);
+        }
+
+        isLoading = false;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!isLoading && SelectedAthleteId.HasValue && selectedAthlete?.Id != SelectedAthleteId.Value)
+        {
+            await LoadSelectedAsync(SelectedAthleteId.Value);
+        }
+    }
+
+    private async Task SelectAthleteAsync(Guid athleteId)
+    {
+        Navigation.NavigateTo($"/coach/athletes/{athleteId}");
+        await LoadSelectedAsync(athleteId);
+    }
+
+    private async Task LoadSelectedAsync(Guid athleteId)
+    {
+        selectedAthlete = await AthleteProfileService.GetAsync(athleteId, CancellationToken.None);
+        sessions = await SessionService.GetForAthleteAsync(athleteId, CancellationToken.None);
+        feedbacks = await FeedbackService.GetVisibleForAthleteAsync(athleteId, CancellationToken.None);
+        assignedWords = allAssignments.Where(x => x.AthleteProfileId == athleteId && x.IsActive).ToList();
+    }
+
+    private static bool Contains(string? value, string query) =>
+        value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
+
+    private static string DisplayName(AthleteProfileDto athlete) =>
+        string.IsNullOrWhiteSpace(athlete.FullName) ? "İsimsiz sporcu" : athlete.FullName;
+
+    private static string DisplayBranch(AthleteProfileDto athlete) =>
+        string.IsNullOrWhiteSpace(athlete.BranchName) ? "Branş girilmemiş" : athlete.BranchName;
+
+    private static string DisplayValue(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "Girilmemiş" : value;
+
+    private static string Initials(AthleteProfileDto athlete)
+    {
+        var parts = DisplayName(athlete).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Take(2).Select(x => x[0])).ToUpperInvariant();
+    }
+
+    private static string PhotoUrl(string path) =>
+        path.StartsWith("/", StringComparison.Ordinal) ? path : $"/{path.Replace('\\', '/')}";
+
+    private static string StatusText(SessionStatus status) => status switch
+    {
+        SessionStatus.Draft => "Taslak",
+        SessionStatus.Active => "Aktif",
+        SessionStatus.Completed => "Tamamlandı",
+        SessionStatus.Cancelled => "İptal edildi",
+        _ => status.ToString()
+    };
+}

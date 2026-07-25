@@ -3,51 +3,95 @@
 @inject IBranchService BranchService
 
 <PageTitle>Branşlar</PageTitle>
-<h1>Branşlar</h1>
 
-<EditForm Model="newBranch" OnValidSubmit="CreateBranchAsync" FormName="branch-create">
-    <DataAnnotationsValidator />
-    <div class="row g-2 align-items-end">
-        <div class="col-md-4">
-            <label class="form-label">Branş adı</label>
-            <InputText class="form-control" @bind-Value="newBranch.Name" />
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Açıklama</label>
-            <InputText class="form-control" @bind-Value="newBranch.Description" />
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Üst branş</label>
-            <InputSelect class="form-select" @bind-Value="newBranch.ParentBranchId">
-                <option value="">Yok</option>
-                @foreach (var branch in branches)
-                {
-                    <option value="@branch.Id">@branch.Name</option>
-                }
-            </InputSelect>
-        </div>
-        <div class="col-md-1">
-            <button class="btn btn-primary w-100" type="submit">Ekle</button>
-        </div>
+<section class="page-hero compact-hero">
+    <div>
+        <p class="dashboard-kicker">Admin</p>
+        <h1>Branş Yönetimi</h1>
+        <p>Spor branşlarını ve alt branşları düzenli tutarak sporcu profillerinin doğru sınıflandırılmasını sağlayın.</p>
     </div>
-</EditForm>
+    <div class="hero-badge">
+        <span>Aktif branş</span>
+        <strong>@branches.Count(x => x.IsActive)</strong>
+    </div>
+</section>
 
-<StatusMessage Message="@message" />
+<section class="content-card p-4">
+    <div class="page-heading compact">
+        <h2>Yeni branş ekle</h2>
+    </div>
 
-<table class="table table-sm mt-4">
-    <thead><tr><th>Ad</th><th>Slug</th><th>Üst</th><th>Durum</th></tr></thead>
-    <tbody>
-        @foreach (var branch in branches)
-        {
-            <tr>
-                <td>@branch.Name</td>
-                <td>@branch.Slug</td>
-                <td>@branches.FirstOrDefault(x => x.Id == branch.ParentBranchId)?.Name</td>
-                <td>@(branch.IsActive ? "Aktif" : "Pasif")</td>
-            </tr>
-        }
-    </tbody>
-</table>
+    <EditForm Model="newBranch" OnValidSubmit="CreateBranchAsync" FormName="branch-create">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="alert alert-danger" role="alert" />
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="BranchName">Branş adı</label>
+                <InputText id="BranchName" class="form-control" @bind-Value="newBranch.Name" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="BranchDescription">Açıklama</label>
+                <InputText id="BranchDescription" class="form-control" @bind-Value="newBranch.Description" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="ParentBranch">Üst branş</label>
+                <InputSelect id="ParentBranch" class="form-select" @bind-Value="newBranch.ParentBranchId">
+                    <option value="">Yok</option>
+                    @foreach (var branch in branches)
+                    {
+                        <option value="@branch.Id">@branch.Name</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-1">
+                <button class="btn btn-primary w-100" type="submit">Ekle</button>
+            </div>
+        </div>
+    </EditForm>
+
+    <StatusMessage Message="@message" />
+</section>
+
+<section class="content-card p-4 mt-4">
+    <div class="section-title-row">
+        <h2 class="h4">Kayıtlı branşlar</h2>
+        <span>@branches.Count kayıt</span>
+    </div>
+
+    @if (branches.Count == 0)
+    {
+        <div class="dashboard-empty">
+            <strong>Henüz branş yok.</strong>
+            <p>İlk branşı yukarıdaki formdan ekleyebilirsiniz.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table admin-table align-middle">
+                <thead>
+                    <tr>
+                        <th>Ad</th>
+                        <th>Kısa ad</th>
+                        <th>Üst branş</th>
+                        <th>Durum</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var branch in branches)
+                    {
+                        <tr>
+                            <td><strong>@branch.Name</strong></td>
+                            <td>@branch.Slug</td>
+                            <td>@(branches.FirstOrDefault(x => x.Id == branch.ParentBranchId)?.Name ?? "Yok")</td>
+                            <td><span class="status-pill @(branch.IsActive ? "active" : "passive")">@(branch.IsActive ? "Aktif" : "Pasif")</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
 
 @code {
     private BranchInput newBranch = new();
@@ -62,12 +106,12 @@
         {
             await BranchService.CreateAsync(new CreateBranchRequest(newBranch.Name, newBranch.Description, newBranch.ParentBranchId, 0), CancellationToken.None);
             newBranch = new();
-            message = "Branş eklendi.";
+            message = "Başarılı: Branş eklendi.";
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            message = ex.Message;
+            message = $"Hata: {ex.Message}";
         }
     }
 

@@ -51,6 +51,8 @@ public sealed class AthleteProfileService(ApplicationDbContext db, IAthleteAcces
         join u in db.Users.AsNoTracking() on p.UserId equals u.Id
         join b in db.SportBranches.AsNoTracking() on p.PrimaryBranchId equals b.Id into branchJoin
         from branch in branchJoin.DefaultIfEmpty()
+        join photoAsset in db.FileAssets.AsNoTracking() on u.ProfilePhotoId equals photoAsset.Id into photoJoin
+        from photo in photoJoin.DefaultIfEmpty()
         select new AthleteProfileDto(
             p.Id,
             p.UserId,
@@ -63,7 +65,8 @@ public sealed class AthleteProfileService(ApplicationDbContext db, IAthleteAcces
             p.ParentPhoneNumber,
             p.Address,
             p.Biography,
-            p.BirthDate);
+            p.BirthDate,
+            photo == null ? null : photo.RelativePath);
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
@@ -116,6 +119,8 @@ public sealed class AthleteRelationService(ApplicationDbContext db, ICurrentUser
                 join user in db.Users.AsNoTracking() on profile.UserId equals user.Id
                 join branch in db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
                 from branch in branchJoin.DefaultIfEmpty()
+                join photoAsset in db.FileAssets.AsNoTracking() on user.ProfilePhotoId equals photoAsset.Id into photoJoin
+                from photo in photoJoin.DefaultIfEmpty()
                 orderby user.FirstName, user.LastName
                 select new AthleteProfileDto(
                     profile.Id,
@@ -129,7 +134,8 @@ public sealed class AthleteRelationService(ApplicationDbContext db, ICurrentUser
                     profile.ParentPhoneNumber,
                     profile.Address,
                     profile.Biography,
-                    profile.BirthDate))
+                    profile.BirthDate,
+                    photo == null ? null : photo.RelativePath))
                 .ToListAsync(cancellationToken);
         }
 
@@ -137,20 +143,26 @@ public sealed class AthleteRelationService(ApplicationDbContext db, ICurrentUser
             from relation in db.AthleteRelations.AsNoTracking()
             join profile in db.AthleteProfiles.AsNoTracking() on relation.AthleteProfileId equals profile.Id
             join user in db.Users.AsNoTracking() on profile.UserId equals user.Id
+            join branch in db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
+            from branch in branchJoin.DefaultIfEmpty()
+            join photoAsset in db.FileAssets.AsNoTracking() on user.ProfilePhotoId equals photoAsset.Id into photoJoin
+            from photo in photoJoin.DefaultIfEmpty()
             where relation.RelatedUserId == userId && relation.IsActive
+            orderby user.FirstName, user.LastName
             select new AthleteProfileDto(
                 profile.Id,
                 profile.UserId,
                 (user.FirstName + " " + user.LastName).Trim(),
                 profile.PrimaryBranchId,
-                null,
+                branch == null ? null : branch.Name,
                 profile.NationalIdentityNumber,
                 profile.PhoneNumber,
                 profile.SecondaryPhoneNumber,
                 profile.ParentPhoneNumber,
                 profile.Address,
                 profile.Biography,
-                profile.BirthDate);
+                profile.BirthDate,
+                photo == null ? null : photo.RelativePath);
 
         return await query.ToListAsync(cancellationToken);
     }
