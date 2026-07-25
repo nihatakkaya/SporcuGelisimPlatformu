@@ -1,0 +1,13 @@
+@page "/"
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Sporcu Gelişim Platformu</PageTitle>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        NavigationManager.NavigateTo(authState.User.Identity?.IsAuthenticated == true ? "dashboard" : "Account/Login");
+    }
+}

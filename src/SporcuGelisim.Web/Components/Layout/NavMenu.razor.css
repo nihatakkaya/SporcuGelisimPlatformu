@@ -1,0 +1,21 @@
+.nav-link {
+    color: #555 !important;
+    font-weight: 700;
+    padding: 0.75rem 0.9rem !important;
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.nav-link:hover,
+.nav-link.active {
+    color: var(--school-green) !important;
+}
+
+.logout-form {
+    margin: 0;
+}
+
+.logout-button {
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+}

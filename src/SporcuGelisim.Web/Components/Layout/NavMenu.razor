@@ -1,0 +1,72 @@
+@implements IDisposable
+
+@inject NavigationManager NavigationManager
+
+<ul class="navbar-nav ms-auto align-items-lg-center">
+    <AuthorizeView>
+        <Authorized>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="dashboard">Dashboard</NavLink>
+            </li>
+        </Authorized>
+    </AuthorizeView>
+    <AuthorizeView Roles="@RoleNames.Admin">
+        <li class="nav-item">
+            <NavLink class="nav-link" href="admin/branches">Branşlar</NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link" href="admin/reports">Raporlar</NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link" href="Account/Register">Sporcu Kaydı</NavLink>
+        </li>
+    </AuthorizeView>
+    <AuthorizeView Roles="@RoleNames.Coach">
+        <li class="nav-item">
+            <NavLink class="nav-link" href="coach/words">Kelime Havuzu</NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link" href="Account/Register">Sporcu Kaydı</NavLink>
+        </li>
+    </AuthorizeView>
+    <AuthorizeView Roles="@RoleNames.Athlete">
+        <li class="nav-item">
+            <NavLink class="nav-link" href="athlete/sessions">Oturumlarım</NavLink>
+        </li>
+    </AuthorizeView>
+    <AuthorizeView>
+        <Authorized>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="feedback">Geri Bildirimler</NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="Account/Manage">@context.User.Identity?.Name</NavLink>
+            </li>
+            <li class="nav-item">
+                <form action="Account/Logout" method="post" class="logout-form">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                    <button type="submit" class="nav-link logout-button">Çıkış</button>
+                </form>
+            </li>
+        </Authorized>
+    </AuthorizeView>
+</ul>
+
+@code {
+    private string? currentUrl;
+
+    protected override void OnInitialized()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    public void Dispose() => NavigationManager.LocationChanged -= OnLocationChanged;
+}

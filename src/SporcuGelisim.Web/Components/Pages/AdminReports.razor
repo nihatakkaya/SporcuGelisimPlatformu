@@ -1,0 +1,42 @@
+@page "/admin/reports"
+@attribute [Authorize(Roles = RoleNames.Admin)]
+@inject IDashboardService DashboardService
+
+<PageTitle>Raporlar</PageTitle>
+<h1>Raporlar</h1>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <h2 class="h5">Branş başına sporcu</h2>
+        <table class="table table-sm">
+            <tbody>
+                @foreach (var row in athletesByBranch)
+                {
+                    <tr><td>@row.Label</td><td>@row.Count</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="col-lg-6">
+        <h2 class="h5">En çok seçilen kelimeler</h2>
+        <table class="table table-sm">
+            <tbody>
+                @foreach (var row in topWords)
+                {
+                    <tr><td>@row.Label</td><td>@row.Count</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<ReportRowDto> athletesByBranch = [];
+    private IReadOnlyList<ReportRowDto> topWords = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        athletesByBranch = await DashboardService.GetAthletesByBranchAsync(CancellationToken.None);
+        topWords = await DashboardService.GetTopWordsAsync(CancellationToken.None);
+    }
+}

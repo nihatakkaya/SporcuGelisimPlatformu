@@ -1,0 +1,38 @@
+@inherits LayoutComponentBase
+
+<div class="app-shell">
+    <header class="school-header">
+        <nav class="navbar navbar-expand-lg">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/dashboard">
+                    <img src="/img/logo.png" alt="SUBÜ Logo" />
+                    <span>Sporcu Gelişim Platformu</span>
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation" aria-controls="mainNavigation" aria-expanded="false" aria-label="Menüyü aç">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="mainNavigation">
+                    <NavMenu />
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="school-main">
+        <div class="container py-4">
+            @Body
+        </div>
+    </main>
+
+    <footer class="school-footer">
+        <div class="container">
+            &copy; Copyright Sakarya Uygulamalı Bilimler Üniversitesi 2019
+        </div>
+    </footer>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Beklenmeyen bir hata oluştu.
+    <a href="." class="reload">Yenile</a>
+    <span class="dismiss">x</span>
+</div>

@@ -1,0 +1,82 @@
+@page "/admin/branches"
+@attribute [Authorize(Roles = RoleNames.Admin)]
+@inject IBranchService BranchService
+
+<PageTitle>Branşlar</PageTitle>
+<h1>Branşlar</h1>
+
+<EditForm Model="newBranch" OnValidSubmit="CreateBranchAsync" FormName="branch-create">
+    <DataAnnotationsValidator />
+    <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label">Branş adı</label>
+            <InputText class="form-control" @bind-Value="newBranch.Name" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Açıklama</label>
+            <InputText class="form-control" @bind-Value="newBranch.Description" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Üst branş</label>
+            <InputSelect class="form-select" @bind-Value="newBranch.ParentBranchId">
+                <option value="">Yok</option>
+                @foreach (var branch in branches)
+                {
+                    <option value="@branch.Id">@branch.Name</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-1">
+            <button class="btn btn-primary w-100" type="submit">Ekle</button>
+        </div>
+    </div>
+</EditForm>
+
+<StatusMessage Message="@message" />
+
+<table class="table table-sm mt-4">
+    <thead><tr><th>Ad</th><th>Slug</th><th>Üst</th><th>Durum</th></tr></thead>
+    <tbody>
+        @foreach (var branch in branches)
+        {
+            <tr>
+                <td>@branch.Name</td>
+                <td>@branch.Slug</td>
+                <td>@branches.FirstOrDefault(x => x.Id == branch.ParentBranchId)?.Name</td>
+                <td>@(branch.IsActive ? "Aktif" : "Pasif")</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private BranchInput newBranch = new();
+    private IReadOnlyList<BranchDto> branches = [];
+    private string? message;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task CreateBranchAsync()
+    {
+        try
+        {
+            await BranchService.CreateAsync(new CreateBranchRequest(newBranch.Name, newBranch.Description, newBranch.ParentBranchId, 0), CancellationToken.None);
+            newBranch = new();
+            message = "Branş eklendi.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private async Task LoadAsync() => branches = await BranchService.GetTreeAsync(CancellationToken.None);
+
+    private sealed class BranchInput
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public Guid? ParentBranchId { get; set; }
+    }
+}

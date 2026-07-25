@@ -1,0 +1,29 @@
+@page "/dashboard"
+@attribute [Authorize]
+@inject IDashboardService DashboardService
+
+<PageTitle>Dashboard</PageTitle>
+<h1>Dashboard</h1>
+
+@if (summary is null)
+{
+    <p>Yükleniyor...</p>
+}
+else
+{
+    <div class="row g-3">
+        <div class="col-md-3"><div class="border rounded p-3"><strong>@summary.AthleteCount</strong><div>Sporcu</div></div></div>
+        <div class="col-md-3"><div class="border rounded p-3"><strong>@summary.CoachCount</strong><div>Antrenör</div></div></div>
+        <div class="col-md-3"><div class="border rounded p-3"><strong>@summary.ParentCount</strong><div>Ebeveyn</div></div></div>
+        <div class="col-md-3"><div class="border rounded p-3"><strong>@summary.SessionCount</strong><div>Oturum</div></div></div>
+    </div>
+}
+
+@code {
+    private DashboardSummaryDto? summary;
+
+    protected override async Task OnInitializedAsync()
+    {
+        summary = await DashboardService.GetSummaryAsync(CancellationToken.None);
+    }
+}

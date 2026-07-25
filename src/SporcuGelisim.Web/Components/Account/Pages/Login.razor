@@ -1,0 +1,172 @@
+@page "/Account/Login"
+@layout LoginLayout
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Identity
+@using SporcuGelisim.Infrastructure.Identity
+
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject ILogger<Login> Logger
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Giriş</PageTitle>
+
+<section class="login-shell" aria-label="Sporcu Gelişim Platformu giriş alanı">
+    <div class="login-showcase">
+        <div class="login-brand">
+            <img src="/img/logo.png" class="login-logo" alt="SUBÜ Logo" />
+            <div>
+                <div class="login-kicker">Sakarya Uygulamalı Bilimler Üniversitesi</div>
+                <h1 class="login-title">Sporcu Gelişim Platformu</h1>
+            </div>
+        </div>
+
+        <div class="login-showcase-copy">
+            <p class="login-eyebrow">Performans Takibi</p>
+            <h2>Antrenör, sporcu ve veli iletişimi için tek giriş noktası.</h2>
+        </div>
+
+        <div class="login-highlights" aria-label="Platform özeti">
+            <div>
+                <strong>Rol bazlı</strong>
+                <span>Admin, antrenör, sporcu ve veli panelleri</span>
+            </div>
+            <div>
+                <strong>Güvenli</strong>
+                <span>Cookie tabanlı oturum ve yetki kontrolleri</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="login-card">
+        <div class="login-header">
+            <p class="login-eyebrow">Hesap Girişi</p>
+            <h2>Devam etmek için giriş yapın</h2>
+            <span>Platform panelinize güvenli şekilde erişin.</span>
+        </div>
+
+        <div class="login-body">
+            <StatusMessage Message="@errorMessage" />
+            <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="alert alert-danger p-2 small" role="alert" />
+
+                <div class="mb-3">
+                    <label for="Input.Login" class="login-label">Kullanıcı adı veya e-posta</label>
+                    <InputText @bind-Value="Input.Login" id="Input.Login" class="form-control login-input" autocomplete="username" aria-required="true" placeholder="admin@sporcu.local" />
+                    <ValidationMessage For="() => Input.Login" class="text-danger small" />
+                </div>
+
+                <div class="mb-2">
+                    <label for="Input.Password" class="login-label">Şifre</label>
+                    <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control login-input" autocomplete="current-password" aria-required="true" placeholder="••••••••" />
+                    <ValidationMessage For="() => Input.Password" class="text-danger small" />
+                </div>
+
+                <label class="form-check my-3">
+                    <InputCheckbox @bind-Value="Input.RememberMe" class="form-check-input darker-border-checkbox" />
+                    <span class="form-check-label">Beni hatırla</span>
+                </label>
+
+                <button type="submit" class="btn-login">Giriş Yap</button>
+
+                <div class="login-links">
+                    <a href="Account/ForgotPassword">Şifremi unuttum</a>
+                    <a href="Account/ResendEmailConfirmation">E-posta onayı</a>
+                </div>
+            </EditForm>
+
+            <div class="login-footer">
+                &copy; Sakarya Uygulamalı Bilimler Üniversitesi
+            </div>
+        </div>
+    </div>
+</section>
+
+@code {
+    private string? errorMessage;
+    private EditContext editContext = default!;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        editContext = new EditContext(Input);
+
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+        }
+    }
+
+    public async Task LoginUser()
+    {
+        if (!editContext.Validate())
+        {
+            return;
+        }
+
+        var login = Input.Login.Trim();
+        var user = login.Contains('@', StringComparison.Ordinal)
+            ? await UserManager.FindByEmailAsync(login) ?? await UserManager.FindByNameAsync(login)
+            : await UserManager.FindByNameAsync(login);
+
+        if (user is { IsActive: false })
+        {
+            errorMessage = "Hata: Kullanıcı hesabı pasif durumdadır.";
+            return;
+        }
+
+        var signInName = user?.UserName ?? login;
+        var result = await SignInManager.PasswordSignInAsync(signInName, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+
+        if (result.Succeeded)
+        {
+            Logger.LogInformation("User logged in.");
+            if (user is not null)
+            {
+                user.LastLoginAt = DateTimeOffset.UtcNow;
+                await UserManager.UpdateAsync(user);
+            }
+
+            RedirectManager.RedirectTo(ReturnUrl ?? "dashboard");
+        }
+        else if (result.RequiresTwoFactor)
+        {
+            RedirectManager.RedirectTo("Account/LoginWith2fa", new() { ["returnUrl"] = ReturnUrl, ["rememberMe"] = Input.RememberMe });
+        }
+        else if (result.IsLockedOut)
+        {
+            Logger.LogWarning("User account locked out.");
+            RedirectManager.RedirectTo("Account/Lockout");
+        }
+        else
+        {
+            errorMessage = "Hata: Geçersiz giriş denemesi.";
+        }
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        [Display(Name = "Kullanıcı adı veya e-posta")]
+        public string Login { get; set; } = "";
+
+        [Required]
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = "";
+
+        [Display(Name = "Beni hatırla")]
+        public bool RememberMe { get; set; }
+    }
+}

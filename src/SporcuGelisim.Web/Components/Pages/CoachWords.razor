@@ -1,0 +1,78 @@
+@page "/coach/words"
+@attribute [Authorize(Roles = RoleNames.Coach + "," + RoleNames.Admin)]
+@inject IMotivationWordService WordService
+@inject IBranchService BranchService
+
+<PageTitle>Kelime Havuzu</PageTitle>
+<h1>Kelime Havuzu</h1>
+
+<EditForm Model="input" OnValidSubmit="CreateWordAsync" FormName="word-create">
+    <DataAnnotationsValidator />
+    <div class="row g-2">
+        <div class="col-md-4">
+            <label class="form-label">Kelime</label>
+            <InputText class="form-control" @bind-Value="input.Text" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Açıklama</label>
+            <InputText class="form-control" @bind-Value="input.Description" />
+        </div>
+        <AuthorizeView Roles="@RoleNames.Admin" Context="authContext">
+            <div class="col-md-2 form-check mt-4">
+                <InputCheckbox class="form-check-input" @bind-Value="input.IsGlobal" />
+                <label class="form-check-label">Global</label>
+            </div>
+        </AuthorizeView>
+        <div class="col-md-2">
+            <button class="btn btn-primary mt-4" type="submit">Ekle</button>
+        </div>
+    </div>
+</EditForm>
+
+<StatusMessage Message="@message" />
+
+<h2 class="h5 mt-4">Aktif kelimeler</h2>
+<ul class="list-group">
+    @foreach (var word in words)
+    {
+        <li class="list-group-item d-flex justify-content-between">
+            <span>@word.Text</span>
+            <span class="badge text-bg-secondary">@(word.IsGlobal ? "Global" : "Branş")</span>
+        </li>
+    }
+</ul>
+
+@code {
+    private WordInput input = new();
+    private IReadOnlyList<MotivationWordDto> words = [];
+    private IReadOnlyList<BranchDto> branches = [];
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        branches = await BranchService.GetTreeAsync(CancellationToken.None);
+        words = await WordService.GetForBranchAsync(null, CancellationToken.None);
+    }
+
+    private async Task CreateWordAsync()
+    {
+        try
+        {
+            await WordService.CreateAsync(new CreateMotivationWordRequest(input.Text, input.Description, null, input.IsGlobal, branches.Take(1).Select(x => x.Id).ToList()), CancellationToken.None);
+            input = new();
+            words = await WordService.GetForBranchAsync(null, CancellationToken.None);
+            message = "Kelime eklendi.";
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+
+    private sealed class WordInput
+    {
+        public string Text { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public bool IsGlobal { get; set; }
+    }
+}

@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Template artifact replaced by SQL Server LocalDB.
+src/SporcuGelisim.Web/Data/app.db

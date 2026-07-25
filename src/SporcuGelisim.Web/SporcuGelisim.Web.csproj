@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <UserSecretsId>aspnet-SporcuGelisim_Web-f5c3250c-c50c-4576-9bd5-55a9d03b98df</UserSecretsId>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Data\**\*.cs" />
+    <Content Remove="Data\app.db" />
+    <None Remove="Data\app.db" />
+    <Content Include="uploads\.gitkeep" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Serilog.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SporcuGelisim.Application\SporcuGelisim.Application.csproj" />
+    <ProjectReference Include="..\SporcuGelisim.Infrastructure\SporcuGelisim.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
