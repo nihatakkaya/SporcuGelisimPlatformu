@@ -72,6 +72,7 @@
 
 @code {
     private string? currentUrl;
+    private bool disposed;
 
     protected override void OnInitialized()
     {
@@ -82,8 +83,18 @@
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
-        StateHasChanged();
+        _ = InvokeAsync(() =>
+        {
+            if (!disposed)
+            {
+                StateHasChanged();
+            }
+        });
     }
 
-    public void Dispose() => NavigationManager.LocationChanged -= OnLocationChanged;
+    public void Dispose()
+    {
+        disposed = true;
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
 }
