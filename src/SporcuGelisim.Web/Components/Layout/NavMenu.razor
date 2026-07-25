@@ -18,6 +18,9 @@
             <NavLink class="nav-link" href="admin/reports">Raporlar</NavLink>
         </li>
         <li class="nav-item">
+            <NavLink class="nav-link" href="admin/relations">Sporcu Atama</NavLink>
+        </li>
+        <li class="nav-item">
             <NavLink class="nav-link" href="Account/Register">Kayıt Oluşturma</NavLink>
         </li>
     </AuthorizeView>
@@ -36,6 +39,9 @@
         <li class="nav-item">
             <NavLink class="nav-link" href="athlete/sessions">Oturumlarım</NavLink>
         </li>
+        <li class="nav-item">
+            <NavLink class="nav-link" href="athlete/words">Kelime Havuzum</NavLink>
+        </li>
     </AuthorizeView>
     <AuthorizeView>
         <Authorized>
@@ -43,7 +49,7 @@
                 <NavLink class="nav-link" href="feedback">Geri Bildirimler</NavLink>
             </li>
             <li class="nav-item">
-                <NavLink class="nav-link account-link" href="Account/Manage">@context.User.Identity?.Name</NavLink>
+                <NavLink class="nav-link account-link" href="Account/Manage">Hesap</NavLink>
             </li>
             <li class="nav-item">
                 <form action="Account/Logout" method="post" class="logout-form">

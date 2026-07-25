@@ -26,3 +26,10 @@ public enum SelectionSource
     ManuallySelected = 0,
     CopiedFromPreviousSession = 1
 }
+
+public enum WordRequestStatus
+{
+    Pending = 0,
+    Approved = 1,
+    Rejected = 2
+}

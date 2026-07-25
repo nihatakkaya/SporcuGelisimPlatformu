@@ -19,3 +19,7 @@ Kritik kurallar:
 - Antrenör kelime havuzunda kendi kelimelerini ekleyebilmeli, düzenleyebilmeli, pasife alabilmeli ve erişebildiği sporculara kelime atayabilmelidir.
 - Antrenör, `Sporcularım` ekranında kendisine bağlı sporcuları listeleyebilmeli; sporcu seçildiğinde branş, iletişim, ebeveyn telefonu, adres, doğum tarihi, profil notu, oturumlar, geri bildirimler ve atanmış kelimeleri görüntüleyebilmelidir.
 - Admin paneli ve hesap yönetimi ekranları Türkçe, görsel olarak tutarlı ve hızlı işlem odaklı olmalıdır.
+- Admin, sporcuları antrenör veya ebeveyn hesaplarına aktif ilişki olarak atayabilmelidir.
+- Sporcu, yalnızca kendisinden sorumlu antrenöre geri bildirim gönderebilmelidir; antrenör sadece kendisine gelen geri bildirimleri görmelidir.
+- Sporcu, kendisine atanmış kelime havuzunu görebilmeli ve yeni kelime önerisini sorumlu antrenöre istek olarak gönderebilmelidir. Antrenör isteği onaylarsa kelime antrenör havuzuna eklenmeli ve sporcuya atanmalıdır.
+- Üst menüde oturum e-postası yerine genel `Hesap` bağlantısı gösterilmelidir.

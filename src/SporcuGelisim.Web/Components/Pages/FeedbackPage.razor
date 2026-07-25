@@ -1,12 +1,167 @@
 @page "/feedback"
 @attribute [Authorize]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using SporcuGelisim.Domain.Enums
+@using SporcuGelisim.Infrastructure.Data
+@inject ApplicationDbContext Db
+@inject ICurrentUserService CurrentUser
+@inject IFeedbackService FeedbackService
 
 <PageTitle>Geri Bildirimler</PageTitle>
 
-<section class="content-card p-4">
-    <div class="page-heading">
+<section class="page-hero compact-hero">
+    <div>
         <p class="dashboard-kicker">Geri Bildirim</p>
         <h1>Geri Bildirimler</h1>
-        <p>Antrenör ve ebeveyn geri bildirim kuralları servis katmanında uygulanır. Varsayılan görünürlük yazar, sporcu ve admin kullanıcısı içindir.</p>
+        <p>Sporcular sorumlu antrenörlerine geri bildirim gönderebilir. Antrenörler yalnızca kendilerine gelen mesajları görür.</p>
     </div>
 </section>
+
+<AuthorizeView Roles="@RoleNames.Athlete" Context="athleteAuth">
+    <section class="content-card p-4">
+        <div class="page-heading compact">
+            <h2>Antrenöre geri bildirim gönder</h2>
+        </div>
+
+        <EditForm Model="input" OnValidSubmit="SubmitAsync" FormName="athlete-feedback">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="alert alert-danger" role="alert" />
+
+            <div class="row g-3">
+                <div class="col-md-5">
+                    <label class="form-label" for="CoachId">Antrenör</label>
+                    <InputSelect id="CoachId" class="form-select" @bind-Value="input.CoachUserId">
+                        <option value="">Seçiniz</option>
+                        @foreach (var coach in coaches)
+                        {
+                            <option value="@coach.Id">@coach.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label" for="Comment">Mesaj</label>
+                    <InputTextArea id="Comment" class="form-control" rows="4" @bind-Value="input.Comment" />
+                </div>
+            </div>
+
+            <button class="btn btn-primary mt-3" type="submit" disabled="@(athleteProfileId == Guid.Empty || coaches.Count == 0)">Gönder</button>
+        </EditForm>
+
+        <StatusMessage Message="@message" />
+    </section>
+</AuthorizeView>
+
+<section class="content-card p-4 mt-4">
+    <div class="section-title-row">
+        <h2 class="h4">Mesajlar</h2>
+        <span>@feedbackRows.Count kayıt</span>
+    </div>
+
+    @if (feedbackRows.Count == 0)
+    {
+        <div class="dashboard-empty">
+            <strong>Henüz geri bildirim yok.</strong>
+            <p>Mesaj gönderildiğinde veya size mesaj geldiğinde burada görüntülenir.</p>
+        </div>
+    }
+    else
+    {
+        <div class="compact-list">
+            @foreach (var row in feedbackRows)
+            {
+                <div>
+                    <strong>@row.AthleteName - @row.AuthorName</strong>
+                    <span>@row.Date.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
+                    <span>@row.Comment</span>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private FeedbackInput input = new();
+    private Guid athleteProfileId;
+    private IReadOnlyList<CoachOption> coaches = [];
+    private IReadOnlyList<FeedbackRow> feedbackRows = [];
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task SubmitAsync()
+    {
+        try
+        {
+            await FeedbackService.CreateAsync(new CreateFeedbackRequest(athleteProfileId, null, input.CoachUserId, DateTimeOffset.UtcNow, input.Comment), CancellationToken.None);
+            input = new();
+            message = "Başarılı: Geri bildiriminiz antrenörünüze gönderildi.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"Hata: {ex.Message}";
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        if (CurrentUser.UserId is null)
+        {
+            return;
+        }
+
+        if (CurrentUser.Roles.Contains(RoleNames.Athlete))
+        {
+            athleteProfileId = await Db.AthleteProfiles.AsNoTracking()
+                .Where(x => x.UserId == CurrentUser.UserId.Value)
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync(CancellationToken.None);
+
+            coaches = await (
+                from relation in Db.AthleteRelations.AsNoTracking()
+                join user in Db.Users.AsNoTracking() on relation.RelatedUserId equals user.Id
+                where relation.AthleteProfileId == athleteProfileId &&
+                      relation.RelationType == AthleteRelationType.Coach &&
+                      relation.IsActive
+                orderby user.FirstName, user.LastName
+                select new CoachOption(user.Id, (user.FirstName + " " + user.LastName).Trim()))
+                .ToListAsync(CancellationToken.None);
+        }
+
+        var isAdmin = CurrentUser.Roles.Contains(RoleNames.Admin);
+        var currentUserId = CurrentUser.UserId.Value;
+        feedbackRows = await (
+            from feedback in Db.Feedbacks.AsNoTracking()
+            join profile in Db.AthleteProfiles.AsNoTracking() on feedback.AthleteProfileId equals profile.Id
+            join athleteUser in Db.Users.AsNoTracking() on profile.UserId equals athleteUser.Id
+            join authorUser in Db.Users.AsNoTracking() on feedback.AuthorUserId equals authorUser.Id
+            where isAdmin ||
+                  feedback.AuthorUserId == currentUserId ||
+                  feedback.RecipientUserId == currentUserId ||
+                  profile.UserId == currentUserId
+            orderby feedback.FeedbackDate descending
+            select new FeedbackRow(
+                (athleteUser.FirstName + " " + athleteUser.LastName).Trim(),
+                (authorUser.FirstName + " " + authorUser.LastName).Trim(),
+                feedback.FeedbackDate,
+                feedback.Comment))
+            .ToListAsync(CancellationToken.None);
+    }
+
+    private sealed class FeedbackInput
+    {
+        [Required(ErrorMessage = "Antrenör seçimi zorunludur.")]
+        public Guid? CoachUserId { get; set; }
+
+        [Required(ErrorMessage = "Mesaj zorunludur.")]
+        [StringLength(2000, ErrorMessage = "Mesaj en fazla 2000 karakter olabilir.")]
+        public string Comment { get; set; } = string.Empty;
+    }
+
+    private sealed record CoachOption(Guid Id, string Name);
+    private sealed record FeedbackRow(string AthleteName, string AuthorName, DateTimeOffset Date, string Comment);
+}

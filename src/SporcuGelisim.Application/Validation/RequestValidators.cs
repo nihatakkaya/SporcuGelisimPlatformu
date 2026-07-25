@@ -54,3 +54,14 @@ public sealed class CreateFeedbackRequestValidator : AbstractValidator<CreateFee
         RuleFor(x => x.Comment).NotEmpty().WithMessage("Yorum zorunludur.").MaximumLength(2000).WithMessage("Yorum en fazla 2000 karakter olabilir.");
     }
 }
+
+public sealed class SubmitWordRequestValidator : AbstractValidator<SubmitWordRequest>
+{
+    public SubmitWordRequestValidator()
+    {
+        RuleFor(x => x.AthleteProfileId).NotEmpty().WithMessage("Sporcu seçimi zorunludur.");
+        RuleFor(x => x.TargetCoachUserId).NotEmpty().WithMessage("Antrenör seçimi zorunludur.");
+        RuleFor(x => x.Text).NotEmpty().WithMessage("Kelime zorunludur.").MaximumLength(120).WithMessage("Kelime en fazla 120 karakter olabilir.");
+        RuleFor(x => x.Note).MaximumLength(1000).WithMessage("Not en fazla 1000 karakter olabilir.");
+    }
+}

@@ -22,7 +22,18 @@ public sealed record AthleteRelationDto(Guid Id, Guid AthleteProfileId, Guid Rel
 public sealed record AthleteSessionDto(Guid Id, Guid AthleteProfileId, string Title, int SessionNumber, DateTimeOffset SessionDate, SessionStatus Status);
 public sealed record SessionWordDto(Guid Id, Guid SessionId, Guid MotivationWordId, string WordTextSnapshot, SelectionSource SelectionSource);
 public sealed record WordAssignmentDto(Guid Id, Guid MotivationWordId, string WordText, Guid AthleteProfileId, string AthleteName, bool IsActive);
-public sealed record FeedbackDto(Guid Id, Guid AthleteProfileId, Guid? SessionId, Guid AuthorUserId, DateTimeOffset FeedbackDate, string Comment);
+public sealed record WordRequestDto(
+    Guid Id,
+    Guid AthleteProfileId,
+    string AthleteName,
+    Guid TargetCoachUserId,
+    string CoachName,
+    string Text,
+    string? Note,
+    WordRequestStatus Status,
+    string? ReviewNote,
+    DateTimeOffset CreatedAt);
+public sealed record FeedbackDto(Guid Id, Guid AthleteProfileId, Guid? SessionId, Guid AuthorUserId, Guid? RecipientUserId, DateTimeOffset FeedbackDate, string Comment);
 public sealed record FileAssetDto(Guid Id, string OriginalFileName, string ContentType, long FileSize, string RelativePath);
 public sealed record DashboardSummaryDto(int AthleteCount, int CoachCount, int ParentCount, int SessionCount);
 public sealed record ReportRowDto(string Label, int Count);

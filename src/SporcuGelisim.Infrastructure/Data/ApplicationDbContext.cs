@@ -22,6 +22,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<FileAsset> FileAssets => Set<FileAsset>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AthleteWordAssignment> AthleteWordAssignments => Set<AthleteWordAssignment>();
+    public DbSet<AthleteWordRequest> AthleteWordRequests => Set<AthleteWordRequest>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -36,6 +37,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         ConfigureBase<Feedback>(builder);
         ConfigureBase<FileAsset>(builder);
         ConfigureBase<AthleteWordAssignment>(builder);
+        ConfigureBase<AthleteWordRequest>(builder);
 
         builder.Entity<ApplicationUser>(entity =>
         {
@@ -121,12 +123,28 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasFilter("[IsActive] = 1 AND [IsDeleted] = 0");
         });
 
+        builder.Entity<AthleteWordRequest>(entity =>
+        {
+            entity.Property(x => x.Text).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.NormalizedText).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Note).HasMaxLength(1000);
+            entity.Property(x => x.ReviewNote).HasMaxLength(1000);
+            entity.HasOne<AthleteProfile>().WithMany().HasForeignKey(x => x.AthleteProfileId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.TargetCoachUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.ReviewedByUserId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne<MotivationWord>().WithMany().HasForeignKey(x => x.CreatedWordId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasIndex(x => new { x.AthleteProfileId, x.TargetCoachUserId, x.NormalizedText, x.Status });
+        });
+
         builder.Entity<Feedback>(entity =>
         {
             entity.Property(x => x.Comment).HasMaxLength(2000).IsRequired();
             entity.HasOne<AthleteProfile>().WithMany().HasForeignKey(x => x.AthleteProfileId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<AthleteSession>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.AuthorUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.RecipientUserId).OnDelete(DeleteBehavior.NoAction);
+            entity.HasIndex(x => x.RecipientUserId);
         });
 
         builder.Entity<FileAsset>(entity =>

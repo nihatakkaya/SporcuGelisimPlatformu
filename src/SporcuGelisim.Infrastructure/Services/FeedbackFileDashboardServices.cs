@@ -7,6 +7,7 @@ using SporcuGelisim.Application.DTOs;
 using SporcuGelisim.Application.Services;
 using SporcuGelisim.Domain.Common;
 using SporcuGelisim.Domain.Entities;
+using SporcuGelisim.Domain.Enums;
 using SporcuGelisim.Infrastructure.Data;
 
 namespace SporcuGelisim.Infrastructure.Services;
@@ -21,6 +22,28 @@ public sealed class FeedbackService(ApplicationDbContext db, ICurrentUserService
         }
 
         await access.EnsureCanCreateFeedbackAsync(request.AthleteProfileId, cancellationToken);
+        if (currentUser.Roles.Contains(RoleNames.Athlete))
+        {
+            if (!request.RecipientUserId.HasValue)
+            {
+                throw new ValidationFailedException(new Dictionary<string, string[]> { ["RecipientUserId"] = ["Geri bildirimin gönderileceği antrenör seçilmelidir."] });
+            }
+
+            var candidateRelations = await db.AthleteRelations.AsNoTracking()
+                .Where(x =>
+                x.AthleteProfileId == request.AthleteProfileId &&
+                x.RelatedUserId == request.RecipientUserId.Value &&
+                x.RelationType == AthleteRelationType.Coach &&
+                x.IsActive)
+                .Select(x => x.EndDate)
+                .ToListAsync(cancellationToken);
+            var isResponsibleCoach = candidateRelations.Any(endDate => endDate is null || endDate > DateTimeOffset.UtcNow);
+            if (!isResponsibleCoach)
+            {
+                throw new ForbiddenException("Yalnızca sorumlu antrenörünüze geri bildirim gönderebilirsiniz.");
+            }
+        }
+
         if (request.SessionId.HasValue)
         {
             var matchesAthlete = await db.AthleteSessions.AnyAsync(x => x.Id == request.SessionId && x.AthleteProfileId == request.AthleteProfileId, cancellationToken);
@@ -35,6 +58,7 @@ public sealed class FeedbackService(ApplicationDbContext db, ICurrentUserService
             AthleteProfileId = request.AthleteProfileId,
             SessionId = request.SessionId,
             AuthorUserId = currentUser.UserId.Value,
+            RecipientUserId = request.RecipientUserId,
             FeedbackDate = request.FeedbackDate.ToUniversalTime(),
             Comment = request.Comment.Trim()
         };
@@ -72,14 +96,14 @@ public sealed class FeedbackService(ApplicationDbContext db, ICurrentUserService
         var query = db.Feedbacks.AsNoTracking().Where(x => x.AthleteProfileId == athleteProfileId);
         if (!currentUser.Roles.Contains(RoleNames.Admin) && currentUser.UserId != athleteUserId)
         {
-            query = query.Where(x => x.AuthorUserId == currentUser.UserId);
+            query = query.Where(x => x.AuthorUserId == currentUser.UserId || x.RecipientUserId == currentUser.UserId);
         }
 
         return await query.OrderByDescending(x => x.FeedbackDate).Select(x => ToDto(x)).ToListAsync(cancellationToken);
     }
 
     private static FeedbackDto ToDto(Feedback entity) =>
-        new(entity.Id, entity.AthleteProfileId, entity.SessionId, entity.AuthorUserId, entity.FeedbackDate, entity.Comment);
+        new(entity.Id, entity.AthleteProfileId, entity.SessionId, entity.AuthorUserId, entity.RecipientUserId, entity.FeedbackDate, entity.Comment);
 }
 
 public sealed class FileStorageService(ApplicationDbContext db, IWebHostEnvironment environment) : IFileStorageService
@@ -104,10 +128,10 @@ public sealed class FileStorageService(ApplicationDbContext db, IWebHostEnvironm
             throw new ValidationFailedException(new Dictionary<string, string[]> { ["File"] = ["Sadece jpg, jpeg, png veya webp yüklenebilir."] });
         }
 
-        var header = new byte[12];
-        var read = await request.Content.ReadAsync(header, cancellationToken);
-        request.Content.Position = 0;
-        if (!Signatures[request.ContentType].Any(sig => read >= sig.Length && sig.SequenceEqual(header.Take(sig.Length))))
+        await using var buffer = new MemoryStream();
+        await request.Content.CopyToAsync(buffer, cancellationToken);
+        var header = buffer.ToArray().Take(12).ToArray();
+        if (!Signatures[request.ContentType].Any(sig => header.Length >= sig.Length && sig.SequenceEqual(header.Take(sig.Length))))
         {
             throw new ValidationFailedException(new Dictionary<string, string[]> { ["File"] = ["Dosya imzası geçersiz."] });
         }
@@ -116,9 +140,10 @@ public sealed class FileStorageService(ApplicationDbContext db, IWebHostEnvironm
         var uploadRoot = Path.Combine(environment.ContentRootPath, "uploads", "profiles");
         Directory.CreateDirectory(uploadRoot);
         var fullPath = Path.Combine(uploadRoot, storedName);
+        buffer.Position = 0;
         await using (var output = File.Create(fullPath))
         {
-            await request.Content.CopyToAsync(output, cancellationToken);
+            await buffer.CopyToAsync(output, cancellationToken);
         }
 
         var asset = new FileAsset

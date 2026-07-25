@@ -1,6 +1,7 @@
 @page "/coach/words"
 @attribute [Authorize(Roles = RoleNames.Coach + "," + RoleNames.Admin)]
 @using System.ComponentModel.DataAnnotations
+@using SporcuGelisim.Domain.Enums
 @inject IMotivationWordService WordService
 @inject IAthleteRelationService AthleteRelationService
 
@@ -166,12 +167,59 @@
     }
 </section>
 
+<section class="content-card p-4 mt-4">
+    <div class="section-title-row">
+        <h2 class="h4">Sporcu kelime istekleri</h2>
+        <span>@wordRequests.Count kayıt</span>
+    </div>
+
+    @if (wordRequests.Count == 0)
+    {
+        <p class="muted-line">Henüz kelime isteği yok.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table admin-table align-middle">
+                <thead>
+                    <tr>
+                        <th>Sporcu</th>
+                        <th>Kelime</th>
+                        <th>Not</th>
+                        <th>Durum</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var request in wordRequests)
+                    {
+                        <tr>
+                            <td>@request.AthleteName</td>
+                            <td><strong>@request.Text</strong></td>
+                            <td>@request.Note</td>
+                            <td><span class="status-pill @StatusClass(request.Status)">@StatusText(request.Status)</span></td>
+                            <td class="text-end">
+                                @if (request.Status == WordRequestStatus.Pending)
+                                {
+                                    <button class="btn btn-sm btn-primary me-2" type="button" @onclick="() => ReviewRequestAsync(request.Id, true)">Onayla</button>
+                                    <button class="btn btn-sm btn-outline-danger" type="button" @onclick="() => ReviewRequestAsync(request.Id, false)">Reddet</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
 @code {
     private WordInput input = new();
     private AssignmentInput assignmentInput = new();
     private IReadOnlyList<MotivationWordDto> words = [];
     private IReadOnlyList<AthleteProfileDto> athletes = [];
     private IReadOnlyList<WordAssignmentDto> assignments = [];
+    private IReadOnlyList<WordRequestDto> wordRequests = [];
     private Guid? editingWordId;
     private string? message;
 
@@ -256,6 +304,20 @@
         }
     }
 
+    private async Task ReviewRequestAsync(Guid requestId, bool approved)
+    {
+        try
+        {
+            await WordService.ReviewWordRequestAsync(new ReviewWordRequest(requestId, approved, null), CancellationToken.None);
+            message = approved ? "Başarılı: Kelime isteği onaylandı." : "Başarılı: Kelime isteği reddedildi.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"Hata: {ex.Message}";
+        }
+    }
+
     private void CancelEdit()
     {
         editingWordId = null;
@@ -267,7 +329,23 @@
         words = await WordService.GetForBranchAsync(null, CancellationToken.None);
         athletes = await AthleteRelationService.GetRelatedAthletesAsync(CancellationToken.None);
         assignments = await WordService.GetAthleteAssignmentsAsync(CancellationToken.None);
+        wordRequests = await WordService.GetWordRequestsAsync(CancellationToken.None);
     }
+
+    private static string StatusText(WordRequestStatus status) => status switch
+    {
+        WordRequestStatus.Pending => "Bekliyor",
+        WordRequestStatus.Approved => "Onaylandı",
+        WordRequestStatus.Rejected => "Reddedildi",
+        _ => status.ToString()
+    };
+
+    private static string StatusClass(WordRequestStatus status) => status switch
+    {
+        WordRequestStatus.Approved => "active",
+        WordRequestStatus.Rejected => "passive",
+        _ => "pending"
+    };
 
     private sealed class WordInput
     {

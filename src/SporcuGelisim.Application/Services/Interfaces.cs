@@ -53,6 +53,9 @@ public interface IMotivationWordService
     Task RemoveAthleteAssignmentAsync(Guid assignmentId, CancellationToken cancellationToken);
     Task<IReadOnlyList<MotivationWordDto>> GetForBranchAsync(Guid? branchId, CancellationToken cancellationToken);
     Task<IReadOnlyList<WordAssignmentDto>> GetAthleteAssignmentsAsync(CancellationToken cancellationToken);
+    Task<WordRequestDto> SubmitWordRequestAsync(SubmitWordRequest request, CancellationToken cancellationToken);
+    Task<WordRequestDto> ReviewWordRequestAsync(ReviewWordRequest request, CancellationToken cancellationToken);
+    Task<IReadOnlyList<WordRequestDto>> GetWordRequestsAsync(CancellationToken cancellationToken);
 }
 
 public interface IAthleteSessionService

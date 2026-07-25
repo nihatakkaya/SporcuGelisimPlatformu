@@ -1,0 +1,193 @@
+@page "/admin/relations"
+@attribute [Authorize(Roles = RoleNames.Admin)]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using SporcuGelisim.Domain.Enums
+@using SporcuGelisim.Infrastructure.Data
+@inject ApplicationDbContext Db
+@inject IAthleteRelationService RelationService
+
+<PageTitle>Sporcu Atama</PageTitle>
+
+<section class="page-hero compact-hero">
+    <div>
+        <p class="dashboard-kicker">Admin</p>
+        <h1>Sporcu Atama</h1>
+        <p>Sporcuları sorumlu antrenör veya ebeveyn hesaplarına bağlayın. Antrenörler yalnızca burada kendilerine atanmış sporcuları görebilir.</p>
+    </div>
+    <div class="hero-badge">
+        <span>Aktif ilişki</span>
+        <strong>@relations.Count</strong>
+    </div>
+</section>
+
+<section class="content-card p-4">
+    <div class="page-heading compact">
+        <h2>Yeni ilişki oluştur</h2>
+    </div>
+
+    <EditForm Model="input" OnValidSubmit="AssignAsync" FormName="relation-assign">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="alert alert-danger" role="alert" />
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="AthleteProfileId">Sporcu</label>
+                <InputSelect id="AthleteProfileId" class="form-select" @bind-Value="input.AthleteProfileId">
+                    <option value="">Seçiniz</option>
+                    @foreach (var athlete in athletes)
+                    {
+                        <option value="@athlete.Id">@athlete.Name (@athlete.BranchName)</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="RelationType">İlişki türü</label>
+                <InputSelect id="RelationType" class="form-select" @bind-Value="input.RelationType">
+                    <option value="@AthleteRelationType.Coach">Antrenör</option>
+                    <option value="@AthleteRelationType.Parent">Ebeveyn</option>
+                </InputSelect>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="RelatedUserId">Hesap</label>
+                <InputSelect id="RelatedUserId" class="form-select" @bind-Value="input.RelatedUserId">
+                    <option value="">Seçiniz</option>
+                    @foreach (var user in TargetUsers())
+                    {
+                        <option value="@user.Id">@user.Name</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-1">
+                <button class="btn btn-primary w-100" type="submit">Ata</button>
+            </div>
+        </div>
+    </EditForm>
+
+    <StatusMessage Message="@message" />
+</section>
+
+<section class="content-card p-4 mt-4">
+    <div class="section-title-row">
+        <h2 class="h4">Aktif atamalar</h2>
+        <span>@relations.Count kayıt</span>
+    </div>
+
+    @if (relations.Count == 0)
+    {
+        <div class="dashboard-empty">
+            <strong>Henüz atama yok.</strong>
+            <p>Antrenörlerin sporcuları görebilmesi için önce buradan ilişki oluşturun.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table admin-table align-middle">
+                <thead>
+                    <tr>
+                        <th>Sporcu</th>
+                        <th>Branş</th>
+                        <th>Atanan hesap</th>
+                        <th>Tür</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var relation in relations)
+                    {
+                        <tr>
+                            <td><strong>@relation.AthleteName</strong></td>
+                            <td>@relation.BranchName</td>
+                            <td>@relation.RelatedUserName</td>
+                            <td>@(relation.RelationType == AthleteRelationType.Coach ? "Antrenör" : "Ebeveyn")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private RelationInput input = new();
+    private IReadOnlyList<AthleteOption> athletes = [];
+    private IReadOnlyList<UserOption> coaches = [];
+    private IReadOnlyList<UserOption> parents = [];
+    private IReadOnlyList<RelationRow> relations = [];
+    private string? message;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private IEnumerable<UserOption> TargetUsers() =>
+        input.RelationType == AthleteRelationType.Parent ? parents : coaches;
+
+    private async Task AssignAsync()
+    {
+        try
+        {
+            await RelationService.AssignAsync(new AssignAthleteRelationRequest(input.AthleteProfileId!.Value, input.RelatedUserId!.Value, input.RelationType), CancellationToken.None);
+            input = new();
+            message = "Başarılı: Sporcu ataması yapıldı.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"Hata: {ex.Message}";
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        athletes = await (
+            from profile in Db.AthleteProfiles.AsNoTracking()
+            join user in Db.Users.AsNoTracking() on profile.UserId equals user.Id
+            join branch in Db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
+            from branch in branchJoin.DefaultIfEmpty()
+            orderby user.FirstName, user.LastName
+            select new AthleteOption(profile.Id, (user.FirstName + " " + user.LastName).Trim(), branch == null ? "Branş girilmemiş" : branch.Name))
+            .ToListAsync(CancellationToken.None);
+
+        coaches = await GetUsersInRoleAsync(RoleNames.Coach);
+        parents = await GetUsersInRoleAsync(RoleNames.Parent);
+
+        relations = await (
+            from relation in Db.AthleteRelations.AsNoTracking()
+            join profile in Db.AthleteProfiles.AsNoTracking() on relation.AthleteProfileId equals profile.Id
+            join athleteUser in Db.Users.AsNoTracking() on profile.UserId equals athleteUser.Id
+            join relatedUser in Db.Users.AsNoTracking() on relation.RelatedUserId equals relatedUser.Id
+            join branch in Db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
+            from branch in branchJoin.DefaultIfEmpty()
+            where relation.IsActive
+            orderby athleteUser.FirstName, athleteUser.LastName
+            select new RelationRow(
+                (athleteUser.FirstName + " " + athleteUser.LastName).Trim(),
+                branch == null ? "Branş girilmemiş" : branch.Name,
+                (relatedUser.FirstName + " " + relatedUser.LastName).Trim(),
+                relation.RelationType))
+            .ToListAsync(CancellationToken.None);
+    }
+
+    private async Task<IReadOnlyList<UserOption>> GetUsersInRoleAsync(string roleName) =>
+        await (
+            from user in Db.Users.AsNoTracking()
+            join userRole in Db.UserRoles.AsNoTracking() on user.Id equals userRole.UserId
+            join role in Db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where role.Name == roleName && user.IsActive
+            orderby user.FirstName, user.LastName
+            select new UserOption(user.Id, (user.FirstName + " " + user.LastName).Trim()))
+            .ToListAsync(CancellationToken.None);
+
+    private sealed class RelationInput
+    {
+        [Required(ErrorMessage = "Sporcu seçimi zorunludur.")]
+        public Guid? AthleteProfileId { get; set; }
+
+        [Required(ErrorMessage = "Hesap seçimi zorunludur.")]
+        public Guid? RelatedUserId { get; set; }
+
+        public AthleteRelationType RelationType { get; set; } = AthleteRelationType.Coach;
+    }
+
+    private sealed record AthleteOption(Guid Id, string Name, string BranchName);
+    private sealed record UserOption(Guid Id, string Name);
+    private sealed record RelationRow(string AthleteName, string BranchName, string RelatedUserName, AthleteRelationType RelationType);
+}

@@ -36,32 +36,34 @@ else
         <AuthorizeView>
             <Authorized>
                 <div class="hero-account-card">
-                    <span>Aktif hesap</span>
-                    <strong>@context.User.Identity?.Name</strong>
+                    <span>Aktif bölüm</span>
+                    <strong>Hesap</strong>
                     <a href="Account/Manage">Hesap bilgileri</a>
                 </div>
             </Authorized>
         </AuthorizeView>
     </section>
 
-    <section class="dashboard-stats" aria-label="Genel özet">
-        <article class="dashboard-stat">
-            <span>Sporcu</span>
-            <strong>@summary.AthleteCount</strong>
-        </article>
-        <article class="dashboard-stat">
-            <span>Antrenör</span>
-            <strong>@summary.CoachCount</strong>
-        </article>
-        <article class="dashboard-stat">
-            <span>Ebeveyn</span>
-            <strong>@summary.ParentCount</strong>
-        </article>
-        <article class="dashboard-stat">
-            <span>Oturum</span>
-            <strong>@summary.SessionCount</strong>
-        </article>
-    </section>
+    <AuthorizeView Roles="@RoleNames.Coach">
+        <section class="dashboard-stats" aria-label="Genel özet">
+            <article class="dashboard-stat">
+                <span>Sporcu</span>
+                <strong>@summary.AthleteCount</strong>
+            </article>
+            <article class="dashboard-stat">
+                <span>Antrenör</span>
+                <strong>@summary.CoachCount</strong>
+            </article>
+            <article class="dashboard-stat">
+                <span>Ebeveyn</span>
+                <strong>@summary.ParentCount</strong>
+            </article>
+            <article class="dashboard-stat">
+                <span>Oturum</span>
+                <strong>@summary.SessionCount</strong>
+            </article>
+        </section>
+    </AuthorizeView>
 
     <div class="dashboard-grid">
         <section class="dashboard-panel">
@@ -86,6 +88,10 @@ else
                         <strong>Raporları incele</strong>
                         <span>Branş dağılımı ve kelime kullanım özetlerini görün.</span>
                     </a>
+                    <a class="dashboard-action" href="admin/relations">
+                        <strong>Sporcu ataması yap</strong>
+                        <span>Sporcuları sorumlu antrenör veya ebeveyn hesaplarına bağlayın.</span>
+                    </a>
                 </AuthorizeView>
 
                 <AuthorizeView Roles="@RoleNames.Coach">
@@ -107,6 +113,10 @@ else
                     <a class="dashboard-action" href="athlete/sessions">
                         <strong>Oturumlarımı aç</strong>
                         <span>Antrenman ve gelişim oturumlarınızı görüntüleyin.</span>
+                    </a>
+                    <a class="dashboard-action" href="athlete/words">
+                        <strong>Kelime havuzum</strong>
+                        <span>Size atanmış kelimeleri görün ve antrenörünüze yeni kelime isteği gönderin.</span>
                     </a>
                 </AuthorizeView>
 

@@ -1,0 +1,205 @@
+@page "/athlete/words"
+@attribute [Authorize(Roles = RoleNames.Athlete)]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using SporcuGelisim.Domain.Enums
+@using SporcuGelisim.Infrastructure.Data
+@inject ApplicationDbContext Db
+@inject ICurrentUserService CurrentUser
+@inject IMotivationWordService WordService
+
+<PageTitle>Kelime Havuzum</PageTitle>
+
+<section class="page-hero compact-hero">
+    <div>
+        <p class="dashboard-kicker">Sporcu</p>
+        <h1>Kelime Havuzum</h1>
+        <p>Antrenörünüzün size atadığı kelimeleri görüntüleyin. Havuzda görmek istediğiniz yeni kelimeyi sorumlu antrenörünüze istek olarak gönderin.</p>
+    </div>
+    <div class="hero-badge">
+        <span>Atanmış kelime</span>
+        <strong>@assignments.Count</strong>
+    </div>
+</section>
+
+<div class="report-grid">
+    <section class="content-card p-4">
+        <div class="section-title-row">
+            <h2 class="h4">Kelimelerim</h2>
+            <span>@assignments.Count kayıt</span>
+        </div>
+
+        @if (assignments.Count == 0)
+        {
+            <div class="dashboard-empty">
+                <strong>Henüz kelime atanmadı.</strong>
+                <p>Antrenörünüz kelime atadığında burada görünecek.</p>
+            </div>
+        }
+        else
+        {
+            <div class="word-chip-list">
+                @foreach (var assignment in assignments)
+                {
+                    <span>@assignment.WordText</span>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="content-card p-4">
+        <div class="section-title-row">
+            <h2 class="h4">Kelime isteği gönder</h2>
+            <span>@requests.Count istek</span>
+        </div>
+
+        <EditForm Model="input" OnValidSubmit="SubmitAsync" FormName="athlete-word-request">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="alert alert-danger" role="alert" />
+
+            <div class="mb-3">
+                <label class="form-label" for="CoachId">Antrenör</label>
+                <InputSelect id="CoachId" class="form-select" @bind-Value="input.TargetCoachUserId">
+                    <option value="">Seçiniz</option>
+                    @foreach (var coach in coaches)
+                    {
+                        <option value="@coach.Id">@coach.Name</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="WordText">Kelime</label>
+                <InputText id="WordText" class="form-control" @bind-Value="input.Text" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="WordNote">Not</label>
+                <InputTextArea id="WordNote" class="form-control" rows="3" @bind-Value="input.Note" />
+            </div>
+            <button class="btn btn-primary" type="submit" disabled="@(athleteProfileId == Guid.Empty || coaches.Count == 0)">İstek Gönder</button>
+        </EditForm>
+
+        <StatusMessage Message="@message" />
+    </section>
+</div>
+
+<section class="content-card p-4 mt-4">
+    <div class="section-title-row">
+        <h2 class="h4">İsteklerim</h2>
+        <span>@requests.Count kayıt</span>
+    </div>
+
+    @if (requests.Count == 0)
+    {
+        <p class="muted-line">Henüz kelime isteği göndermediniz.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table admin-table align-middle">
+                <thead>
+                    <tr>
+                        <th>Kelime</th>
+                        <th>Antrenör</th>
+                        <th>Durum</th>
+                        <th>Not</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var request in requests)
+                    {
+                        <tr>
+                            <td><strong>@request.Text</strong></td>
+                            <td>@request.CoachName</td>
+                            <td><span class="status-pill @StatusClass(request.Status)">@StatusText(request.Status)</span></td>
+                            <td>@(request.ReviewNote ?? request.Note)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private WordRequestInput input = new();
+    private Guid athleteProfileId;
+    private IReadOnlyList<WordAssignmentDto> assignments = [];
+    private IReadOnlyList<WordRequestDto> requests = [];
+    private IReadOnlyList<CoachOption> coaches = [];
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task SubmitAsync()
+    {
+        try
+        {
+            await WordService.SubmitWordRequestAsync(new SubmitWordRequest(athleteProfileId, input.TargetCoachUserId!.Value, input.Text, input.Note), CancellationToken.None);
+            input = new();
+            message = "Başarılı: Kelime isteğiniz antrenörünüze gönderildi.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"Hata: {ex.Message}";
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        if (CurrentUser.UserId is null)
+        {
+            return;
+        }
+
+        athleteProfileId = await Db.AthleteProfiles.AsNoTracking()
+            .Where(x => x.UserId == CurrentUser.UserId.Value)
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync(CancellationToken.None);
+
+        assignments = await WordService.GetAthleteAssignmentsAsync(CancellationToken.None);
+        requests = await WordService.GetWordRequestsAsync(CancellationToken.None);
+        coaches = await (
+            from relation in Db.AthleteRelations.AsNoTracking()
+            join user in Db.Users.AsNoTracking() on relation.RelatedUserId equals user.Id
+            where relation.AthleteProfileId == athleteProfileId &&
+                  relation.RelationType == AthleteRelationType.Coach &&
+                  relation.IsActive
+            orderby user.FirstName, user.LastName
+            select new CoachOption(user.Id, (user.FirstName + " " + user.LastName).Trim()))
+            .ToListAsync(CancellationToken.None);
+    }
+
+    private static string StatusText(WordRequestStatus status) => status switch
+    {
+        WordRequestStatus.Pending => "Bekliyor",
+        WordRequestStatus.Approved => "Onaylandı",
+        WordRequestStatus.Rejected => "Reddedildi",
+        _ => status.ToString()
+    };
+
+    private static string StatusClass(WordRequestStatus status) => status switch
+    {
+        WordRequestStatus.Approved => "active",
+        WordRequestStatus.Rejected => "passive",
+        _ => "pending"
+    };
+
+    private sealed class WordRequestInput
+    {
+        [Required(ErrorMessage = "Antrenör seçimi zorunludur.")]
+        public Guid? TargetCoachUserId { get; set; }
+
+        [Required(ErrorMessage = "Kelime zorunludur.")]
+        [StringLength(120, ErrorMessage = "Kelime en fazla 120 karakter olabilir.")]
+        public string Text { get; set; } = string.Empty;
+
+        [StringLength(1000, ErrorMessage = "Not en fazla 1000 karakter olabilir.")]
+        public string? Note { get; set; }
+    }
+
+    private sealed record CoachOption(Guid Id, string Name);
+}

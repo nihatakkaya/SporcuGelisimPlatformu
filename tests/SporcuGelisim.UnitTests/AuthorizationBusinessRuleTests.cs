@@ -51,7 +51,7 @@ public sealed class AuthorizationBusinessRuleTests
     {
         await using var fixture = await TestFixture.CreateAsync(RoleNames.Coach, TestFixture.CoachUserId);
         var service = new FeedbackService(fixture.Db, fixture.CurrentUser, fixture.Access, fixture.Audit);
-        var result = await service.CreateAsync(new CreateFeedbackRequest(TestFixture.AthleteProfile1Id, null, DateTimeOffset.UtcNow, "İyi ilerleme"), CancellationToken.None);
+        var result = await service.CreateAsync(new CreateFeedbackRequest(TestFixture.AthleteProfile1Id, null, null, DateTimeOffset.UtcNow, "İyi ilerleme"), CancellationToken.None);
         Assert.Equal(TestFixture.CoachUserId, result.AuthorUserId);
     }
 
@@ -60,8 +60,18 @@ public sealed class AuthorizationBusinessRuleTests
     {
         await using var fixture = await TestFixture.CreateAsync(RoleNames.Parent, TestFixture.ParentUserId);
         var service = new FeedbackService(fixture.Db, fixture.CurrentUser, fixture.Access, fixture.Audit);
-        var result = await service.CreateAsync(new CreateFeedbackRequest(TestFixture.AthleteProfile1Id, null, DateTimeOffset.UtcNow, "Destek mesajı"), CancellationToken.None);
+        var result = await service.CreateAsync(new CreateFeedbackRequest(TestFixture.AthleteProfile1Id, null, null, DateTimeOffset.UtcNow, "Destek mesajı"), CancellationToken.None);
         Assert.Equal(TestFixture.ParentUserId, result.AuthorUserId);
+    }
+
+    [Fact]
+    public async Task Athlete_can_send_feedback_only_to_responsible_coach()
+    {
+        await using var fixture = await TestFixture.CreateAsync(RoleNames.Athlete, TestFixture.AthleteUser1Id);
+        var service = new FeedbackService(fixture.Db, fixture.CurrentUser, fixture.Access, fixture.Audit);
+        var result = await service.CreateAsync(new CreateFeedbackRequest(TestFixture.AthleteProfile1Id, null, TestFixture.CoachUserId, DateTimeOffset.UtcNow, "Bugünkü çalışma hakkında not"), CancellationToken.None);
+        Assert.Equal(TestFixture.CoachUserId, result.RecipientUserId);
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.CreateAsync(new CreateFeedbackRequest(TestFixture.AthleteProfile1Id, null, TestFixture.ParentUserId, DateTimeOffset.UtcNow, "Yanlış hedef"), CancellationToken.None));
     }
 
     [Fact]
@@ -98,6 +108,24 @@ public sealed class AuthorizationBusinessRuleTests
         var service = new MotivationWordService(fixture.Db, fixture.CurrentUser, fixture.Access, fixture.Audit);
         var word = await service.CreateAsync(new CreateMotivationWordRequest("Kararlılık", null, null, false, []), CancellationToken.None);
         await Assert.ThrowsAsync<ForbiddenException>(() => service.AssignAthletesAsync(new AssignWordToAthletesRequest(word.Id, [TestFixture.AthleteProfile2Id]), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Coach_approval_adds_athlete_word_request_to_pool()
+    {
+        await using var fixture = await TestFixture.CreateAsync(RoleNames.Athlete, TestFixture.AthleteUser1Id);
+        var athleteService = new MotivationWordService(fixture.Db, fixture.CurrentUser, fixture.Access, fixture.Audit);
+        var request = await athleteService.SubmitWordRequestAsync(
+            new SubmitWordRequest(TestFixture.AthleteProfile1Id, TestFixture.CoachUserId, "Cesaret", "Antrenmanlarda kullanmak istiyorum."),
+            CancellationToken.None);
+
+        var coachUser = new TestCurrentUser(TestFixture.CoachUserId, new HashSet<string>([RoleNames.Coach], StringComparer.OrdinalIgnoreCase));
+        var coachAccess = new AthleteAccessService(fixture.Db, coachUser);
+        var coachService = new MotivationWordService(fixture.Db, coachUser, coachAccess, fixture.Audit);
+        var reviewed = await coachService.ReviewWordRequestAsync(new ReviewWordRequest(request.Id, true, null), CancellationToken.None);
+
+        Assert.Equal(WordRequestStatus.Approved, reviewed.Status);
+        Assert.True(await fixture.Db.AthleteWordAssignments.AnyAsync(x => x.AthleteProfileId == TestFixture.AthleteProfile1Id));
     }
 
     [Fact]

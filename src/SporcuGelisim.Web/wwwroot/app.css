@@ -901,6 +901,11 @@ a,
     color: #a32736;
 }
 
+.status-pill.pending {
+    background: #fff7e8;
+    color: #9a6400;
+}
+
 .report-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }

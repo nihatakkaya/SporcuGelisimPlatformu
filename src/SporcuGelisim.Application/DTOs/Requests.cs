@@ -23,7 +23,9 @@ public sealed record CreateSessionRequest(Guid AthleteProfileId, string Title, D
 public sealed record UpdateSessionRequest(Guid Id, string Title, DateTimeOffset SessionDate, string? Description, SessionStatus Status);
 public sealed record AddSessionWordsRequest(Guid SessionId, IReadOnlyCollection<Guid> MotivationWordIds);
 public sealed record CopySessionWordsRequest(Guid SourceSessionId, Guid TargetSessionId, IReadOnlyCollection<Guid>? SessionWordIds);
-public sealed record CreateFeedbackRequest(Guid AthleteProfileId, Guid? SessionId, DateTimeOffset FeedbackDate, string Comment);
+public sealed record CreateFeedbackRequest(Guid AthleteProfileId, Guid? SessionId, Guid? RecipientUserId, DateTimeOffset FeedbackDate, string Comment);
 public sealed record UpdateFeedbackRequest(Guid Id, DateTimeOffset FeedbackDate, string Comment);
 public sealed record AssignAthleteRelationRequest(Guid AthleteProfileId, Guid RelatedUserId, AthleteRelationType RelationType);
+public sealed record SubmitWordRequest(Guid AthleteProfileId, Guid TargetCoachUserId, string Text, string? Note);
+public sealed record ReviewWordRequest(Guid Id, bool Approved, string? ReviewNote);
 public sealed record UploadProfilePhotoRequest(Guid OwnerUserId, string FileName, string ContentType, long FileSize, Stream Content);
