@@ -49,7 +49,10 @@ public interface IMotivationWordService
     Task<MotivationWordDto> CreateAsync(CreateMotivationWordRequest request, CancellationToken cancellationToken);
     Task<MotivationWordDto> UpdateAsync(UpdateMotivationWordRequest request, CancellationToken cancellationToken);
     Task AssignBranchesAsync(AssignWordToBranchesRequest request, CancellationToken cancellationToken);
+    Task AssignAthletesAsync(AssignWordToAthletesRequest request, CancellationToken cancellationToken);
+    Task RemoveAthleteAssignmentAsync(Guid assignmentId, CancellationToken cancellationToken);
     Task<IReadOnlyList<MotivationWordDto>> GetForBranchAsync(Guid? branchId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<WordAssignmentDto>> GetAthleteAssignmentsAsync(CancellationToken cancellationToken);
 }
 
 public interface IAthleteSessionService

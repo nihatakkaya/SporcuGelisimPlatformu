@@ -71,6 +71,25 @@ public sealed class AuthorizationBusinessRuleTests
     }
 
     [Fact]
+    public async Task Coach_can_assign_word_to_related_athlete()
+    {
+        await using var fixture = await TestFixture.CreateAsync(RoleNames.Coach, TestFixture.CoachUserId);
+        var service = new MotivationWordService(fixture.Db, fixture.CurrentUser, fixture.Access, fixture.Audit);
+        var word = await service.CreateAsync(new CreateMotivationWordRequest("Mücadele", null, null, false, []), CancellationToken.None);
+        await service.AssignAthletesAsync(new AssignWordToAthletesRequest(word.Id, [TestFixture.AthleteProfile1Id]), CancellationToken.None);
+        Assert.True(await fixture.Db.AthleteWordAssignments.AnyAsync(x => x.MotivationWordId == word.Id && x.AthleteProfileId == TestFixture.AthleteProfile1Id));
+    }
+
+    [Fact]
+    public async Task Coach_cannot_assign_word_to_unrelated_athlete()
+    {
+        await using var fixture = await TestFixture.CreateAsync(RoleNames.Coach, TestFixture.CoachUserId);
+        var service = new MotivationWordService(fixture.Db, fixture.CurrentUser, fixture.Access, fixture.Audit);
+        var word = await service.CreateAsync(new CreateMotivationWordRequest("Kararlılık", null, null, false, []), CancellationToken.None);
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.AssignAthletesAsync(new AssignWordToAthletesRequest(word.Id, [TestFixture.AthleteProfile2Id]), CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Coach_cannot_create_global_word()
     {
         await using var fixture = await TestFixture.CreateAsync(RoleNames.Coach, TestFixture.CoachUserId);
@@ -161,7 +180,9 @@ public sealed class AuthorizationBusinessRuleTests
     {
         await using var fixture = await TestFixture.CreateAsync(RoleNames.Athlete, TestFixture.AthleteUser1Id);
         var service = new AthleteProfileService(fixture.Db, fixture.Access);
-        await Assert.ThrowsAsync<ConflictException>(() => service.UpdateAsync(new UpdateAthleteProfileRequest(TestFixture.AthleteProfile1Id, TestFixture.PassiveBranchId, null, null), CancellationToken.None));
+        await Assert.ThrowsAsync<ConflictException>(() => service.UpdateAsync(
+            new UpdateAthleteProfileRequest(TestFixture.AthleteProfile1Id, TestFixture.PassiveBranchId, null, null, null, null, null, null, null),
+            CancellationToken.None));
     }
 
     [Fact]

@@ -25,7 +25,7 @@ public sealed class MotivationWordService(
         {
             Text = request.Text.Trim(),
             NormalizedText = Normalize(request.Text),
-            Description = request.Description,
+            Description = Clean(request.Description),
             ParentWordId = request.ParentWordId,
             IsGlobal = currentUser.Roles.Contains(RoleNames.Admin) && request.IsGlobal,
             IsActive = true,
@@ -56,7 +56,7 @@ public sealed class MotivationWordService(
 
         entity.Text = request.Text.Trim();
         entity.NormalizedText = Normalize(request.Text);
-        entity.Description = request.Description;
+        entity.Description = Clean(request.Description);
         entity.ParentWordId = request.ParentWordId;
         entity.IsGlobal = currentUser.Roles.Contains(RoleNames.Admin) && request.IsGlobal;
         entity.IsActive = request.IsActive;
@@ -75,33 +75,98 @@ public sealed class MotivationWordService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<MotivationWordDto>> GetForBranchAsync(Guid? branchId, CancellationToken cancellationToken)
+    public async Task AssignAthletesAsync(AssignWordToAthletesRequest request, CancellationToken cancellationToken)
     {
-        var branchIds = new HashSet<Guid>();
-        if (branchId.HasValue)
+        if (currentUser.UserId is null)
         {
-            var current = branchId;
-            for (var depth = 0; current.HasValue && depth < 32; depth++)
-            {
-                branchIds.Add(current.Value);
-                current = await db.SportBranches.AsNoTracking()
-                    .Where(x => x.Id == current.Value)
-                    .Select(x => x.ParentBranchId)
-                    .FirstOrDefaultAsync(cancellationToken);
-            }
+            throw new ForbiddenException("Kelime atamak için oturum açmanız gerekir.");
         }
 
-        var query = db.MotivationWords.AsNoTracking().Where(x => x.IsActive);
-        if (branchIds.Count > 0)
+        await access.EnsureCanManageWordAsync(request.MotivationWordId, cancellationToken);
+
+        foreach (var athleteProfileId in request.AthleteProfileIds.Distinct())
         {
-            query = query.Where(x => x.IsGlobal || db.WordBranches.Any(wb => wb.MotivationWordId == x.Id && branchIds.Contains(wb.SportBranchId)));
+            await access.EnsureCanAccessAthleteAsync(athleteProfileId, cancellationToken);
+            var exists = await db.AthleteWordAssignments.AnyAsync(x =>
+                x.AthleteProfileId == athleteProfileId &&
+                x.MotivationWordId == request.MotivationWordId &&
+                x.IsActive, cancellationToken);
+            if (exists)
+            {
+                continue;
+            }
+
+            db.AthleteWordAssignments.Add(new AthleteWordAssignment
+            {
+                AthleteProfileId = athleteProfileId,
+                MotivationWordId = request.MotivationWordId,
+                AssignedByUserId = currentUser.UserId.Value
+            });
         }
-        else
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveAthleteAssignmentAsync(Guid assignmentId, CancellationToken cancellationToken)
+    {
+        var entity = await db.AthleteWordAssignments.FirstOrDefaultAsync(x => x.Id == assignmentId, cancellationToken)
+            ?? throw new NotFoundException("Kelime ataması bulunamadı.");
+
+        if (!currentUser.Roles.Contains(RoleNames.Admin) && entity.AssignedByUserId != currentUser.UserId)
         {
-            query = query.Where(x => x.IsGlobal);
+            throw new ForbiddenException("Yalnızca kendi kelime atamalarınızı kaldırabilirsiniz.");
+        }
+
+        entity.IsActive = false;
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MotivationWordDto>> GetForBranchAsync(Guid? branchId, CancellationToken cancellationToken)
+    {
+        var query = db.MotivationWords.AsNoTracking().Where(x => x.IsActive);
+
+        if (currentUser.Roles.Contains(RoleNames.Coach) && currentUser.UserId is not null)
+        {
+            query = query.Where(x => x.IsGlobal || x.CreatedByUserId == currentUser.UserId);
+        }
+
+        if (branchId.HasValue)
+        {
+            var branchIds = await GetBranchLineageAsync(branchId.Value, cancellationToken);
+            query = query.Where(x => x.IsGlobal || db.WordBranches.Any(wb => wb.MotivationWordId == x.Id && branchIds.Contains(wb.SportBranchId)));
         }
 
         return await query.OrderBy(x => x.Text).Select(x => ToDto(x)).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<WordAssignmentDto>> GetAthleteAssignmentsAsync(CancellationToken cancellationToken)
+    {
+        var query =
+            from assignment in db.AthleteWordAssignments.AsNoTracking()
+            join word in db.MotivationWords.AsNoTracking() on assignment.MotivationWordId equals word.Id
+            join profile in db.AthleteProfiles.AsNoTracking() on assignment.AthleteProfileId equals profile.Id
+            join user in db.Users.AsNoTracking() on profile.UserId equals user.Id
+            where assignment.IsActive
+            select new { assignment, word, user };
+
+        if (!currentUser.Roles.Contains(RoleNames.Admin))
+        {
+            query = query.Where(x => x.assignment.AssignedByUserId == currentUser.UserId);
+        }
+
+        return await query
+            .OrderBy(x => x.user.FirstName)
+            .ThenBy(x => x.user.LastName)
+            .ThenBy(x => x.word.Text)
+            .Select(x => new WordAssignmentDto(
+                x.assignment.Id,
+                x.word.Id,
+                x.word.Text,
+                x.assignment.AthleteProfileId,
+                (x.user.FirstName + " " + x.user.LastName).Trim(),
+                x.assignment.IsActive))
+            .ToListAsync(cancellationToken);
     }
 
     private void EnsureCanCreate(bool requestedGlobal)
@@ -173,9 +238,27 @@ public sealed class MotivationWordService(
         }));
     }
 
+    private async Task<HashSet<Guid>> GetBranchLineageAsync(Guid branchId, CancellationToken cancellationToken)
+    {
+        var branchIds = new HashSet<Guid>();
+        Guid? current = branchId;
+        for (var depth = 0; current.HasValue && depth < 32; depth++)
+        {
+            branchIds.Add(current.Value);
+            current = await db.SportBranches.AsNoTracking()
+                .Where(x => x.Id == current.Value)
+                .Select(x => x.ParentBranchId)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        return branchIds;
+    }
+
     public static string Normalize(string value) =>
         value.Trim().ToUpperInvariant()
             .Replace("İ", "I").Replace("Ğ", "G").Replace("Ü", "U").Replace("Ş", "S").Replace("Ö", "O").Replace("Ç", "C");
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static MotivationWordDto ToDto(MotivationWord entity) =>
         new(entity.Id, entity.Text, entity.Description, entity.ParentWordId, entity.IsGlobal, entity.IsActive, entity.CreatedByUserId);

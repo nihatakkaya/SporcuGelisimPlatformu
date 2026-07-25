@@ -9,7 +9,7 @@ public sealed class ForbiddenException(string message) : ApplicationExceptionBas
 public sealed class ConflictException(string message) : ApplicationExceptionBase(message);
 
 public sealed class ValidationFailedException(IReadOnlyDictionary<string, string[]> errors)
-    : ApplicationExceptionBase("Validation failed.")
+    : ApplicationExceptionBase("Doğrulama hatası oluştu.")
 {
     public IReadOnlyDictionary<string, string[]> Errors { get; } = errors;
 }

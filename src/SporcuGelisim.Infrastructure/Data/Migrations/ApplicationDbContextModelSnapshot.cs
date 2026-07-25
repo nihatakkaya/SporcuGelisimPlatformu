@@ -159,6 +159,10 @@ namespace SporcuGelisim.Infrastructure.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Biography")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
@@ -172,6 +176,18 @@ namespace SporcuGelisim.Infrastructure.Data.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<string>("NationalIdentityNumber")
+                        .HasMaxLength(11)
+                        .HasColumnType("nvarchar(11)");
+
+                    b.Property<string>("ParentPhoneNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<Guid?>("PrimaryBranchId")
                         .HasColumnType("uniqueidentifier");
 
@@ -183,6 +199,10 @@ namespace SporcuGelisim.Infrastructure.Data.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
+
+                    b.Property<string>("SecondaryPhoneNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -251,6 +271,52 @@ namespace SporcuGelisim.Infrastructure.Data.Migrations
                         .HasFilter("[IsActive] = 1 AND [IsDeleted] = 0");
 
                     b.ToTable("AthleteRelations");
+                });
+
+            modelBuilder.Entity("SporcuGelisim.Domain.Entities.AthleteWordAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AssignedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AthleteProfileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("MotivationWordId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedByUserId");
+
+                    b.HasIndex("AthleteProfileId", "MotivationWordId", "IsActive")
+                        .IsUnique()
+                        .HasFilter("[IsActive] = 1 AND [IsDeleted] = 0");
+
+                    b.HasIndex("MotivationWordId");
+
+                    b.ToTable("AthleteWordAssignments");
                 });
 
             modelBuilder.Entity("SporcuGelisim.Domain.Entities.AthleteSession", b =>
@@ -825,6 +891,27 @@ namespace SporcuGelisim.Infrastructure.Data.Migrations
                     b.HasOne("SporcuGelisim.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("RelatedUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SporcuGelisim.Domain.Entities.AthleteWordAssignment", b =>
+                {
+                    b.HasOne("SporcuGelisim.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SporcuGelisim.Domain.Entities.AthleteProfile", null)
+                        .WithMany()
+                        .HasForeignKey("AthleteProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SporcuGelisim.Domain.Entities.MotivationWord", null)
+                        .WithMany()
+                        .HasForeignKey("MotivationWordId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

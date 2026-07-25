@@ -1,131 +1,138 @@
-﻿@page "/Account/Register"
+@page "/Account/Register"
+@attribute [Authorize(Roles = RoleNames.Admin)]
 
 @using System.ComponentModel.DataAnnotations
-@using System.Text
-@using System.Text.Encodings.Web
 @using Microsoft.AspNetCore.Identity
-@using Microsoft.AspNetCore.WebUtilities
-@using SporcuGelisim.Domain.Common
 @using SporcuGelisim.Domain.Entities
 @using SporcuGelisim.Infrastructure.Data
 @using SporcuGelisim.Infrastructure.Identity
 
 @inject UserManager<ApplicationUser> UserManager
 @inject IUserStore<ApplicationUser> UserStore
-@inject SignInManager<ApplicationUser> SignInManager
 @inject ApplicationDbContext Db
-@inject IEmailSender<ApplicationUser> EmailSender
 @inject ILogger<Register> Logger
-@inject NavigationManager NavigationManager
-@inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Sporcu Kaydı</PageTitle>
+<PageTitle>Kayıt Oluşturma</PageTitle>
 
-<h1>Sporcu Kaydı</h1>
+<section class="content-card p-4">
+    <div class="page-heading">
+        <p class="dashboard-kicker">Hesap Yönetimi</p>
+        <h1>Kayıt Oluşturma</h1>
+        <p>Admin, kullanıcı e-postası ve geçici şifre ile hesap oluşturur. Sporcu hesabı oluşturulduğunda kişi kendi girişiyle profil bilgilerini tamamlar.</p>
+    </div>
 
-<div class="row">
-    <div class="col-lg-6">
-        <StatusMessage Message="@Message" />
-        <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
-            <DataAnnotationsValidator />
-            <h2>Yeni sporcu hesabı oluştur</h2>
-            <hr />
-            <ValidationSummary class="text-danger" role="alert" />
-            <div class="form-floating mb-3">
-                <InputText @bind-Value="Input.FirstName" id="Input.FirstName" class="form-control" autocomplete="given-name" aria-required="true" placeholder="Ad" />
-                <label for="Input.FirstName">Ad</label>
+    <StatusMessage Message="@message" />
+
+    <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="alert alert-danger" role="alert" />
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="Input.FirstName" class="form-label">Ad</label>
+                <InputText @bind-Value="Input.FirstName" id="Input.FirstName" class="form-control" autocomplete="given-name" />
                 <ValidationMessage For="() => Input.FirstName" class="text-danger" />
             </div>
-            <div class="form-floating mb-3">
-                <InputText @bind-Value="Input.LastName" id="Input.LastName" class="form-control" autocomplete="family-name" aria-required="true" placeholder="Soyad" />
-                <label for="Input.LastName">Soyad</label>
+            <div class="col-md-6">
+                <label for="Input.LastName" class="form-label">Soyad</label>
+                <InputText @bind-Value="Input.LastName" id="Input.LastName" class="form-control" autocomplete="family-name" />
                 <ValidationMessage For="() => Input.LastName" class="text-danger" />
             </div>
-            <div class="form-floating mb-3">
-                <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
-                <label for="Input.Email">E-posta</label>
+            <div class="col-md-6">
+                <label for="Input.Email" class="form-label">E-posta</label>
+                <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" placeholder="kullanici@gmail.com" />
                 <ValidationMessage For="() => Input.Email" class="text-danger" />
             </div>
-            <div class="form-floating mb-3">
-                <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
-                <label for="Input.Password">Parola</label>
+            <div class="col-md-6">
+                <label for="Input.Role" class="form-label">Hesap türü</label>
+                <InputSelect @bind-Value="Input.Role" id="Input.Role" class="form-select">
+                    @foreach (var role in RoleOptions)
+                    {
+                        <option value="@role.Value">@role.Label</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="() => Input.Role" class="text-danger" />
+            </div>
+            <div class="col-md-6">
+                <label for="Input.Password" class="form-label">Şifre</label>
+                <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="new-password" />
                 <ValidationMessage For="() => Input.Password" class="text-danger" />
             </div>
-            <div class="form-floating mb-3">
-                <InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
-                <label for="Input.ConfirmPassword">Parola Tekrar</label>
+            <div class="col-md-6">
+                <label for="Input.ConfirmPassword" class="form-label">Şifre tekrar</label>
+                <InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword" class="form-control" autocomplete="new-password" />
                 <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
             </div>
-            <button type="submit" class="w-100 btn btn-lg btn-primary">Kaydol</button>
-        </EditForm>
-    </div>
-    <div class="col-lg-4 col-lg-offset-2">
-        <section>
-            <h3>Harici giriş sağlayıcıları</h3>
-            <hr />
-            <ExternalLoginPicker />
-        </section>
-    </div>
-</div>
+        </div>
+
+        <div class="form-help mt-3">
+            Şifre en az 6 karakter olmalı; büyük harf, küçük harf, rakam ve sembol içermelidir.
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-4">Hesap Oluştur</button>
+    </EditForm>
+</section>
 
 @code {
-    private IEnumerable<IdentityError>? identityErrors;
+    private static readonly IReadOnlyList<RoleOption> RoleOptions =
+    [
+        new(RoleNames.Athlete, "Sporcu"),
+        new(RoleNames.Coach, "Antrenör"),
+        new(RoleNames.Parent, "Ebeveyn"),
+        new(RoleNames.Admin, "Admin")
+    ];
+
+    private string? message;
 
     [SupplyParameterFromForm]
     private InputModel Input { get; set; } = default!;
-
-    [SupplyParameterFromQuery]
-    private string? ReturnUrl { get; set; }
-
-    private string? Message => identityErrors is null ? null : $"Hata: {string.Join(", ", identityErrors.Select(error => error.Description))}";
 
     protected override void OnInitialized()
     {
         Input ??= new();
     }
 
-    public async Task RegisterUser(EditContext editContext)
+    public async Task RegisterUser()
     {
-        var user = CreateUser();
-        user.FirstName = Input.FirstName.Trim();
-        user.LastName = Input.LastName.Trim();
-
-        await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
-        var emailStore = GetEmailStore();
-        await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
-        var result = await UserManager.CreateAsync(user, Input.Password);
-
-        if (!result.Succeeded)
+        message = null;
+        if (!RoleOptions.Any(x => x.Value == Input.Role))
         {
-            identityErrors = result.Errors;
+            message = "Hata: Geçerli bir hesap türü seçin.";
             return;
         }
 
-        Logger.LogInformation("User created a new account with password.");
-        await UserManager.AddToRoleAsync(user, RoleNames.Athlete);
-        Db.AthleteProfiles.Add(new AthleteProfile { UserId = user.Id });
-        await Db.SaveChangesAsync();
+        var user = CreateUser();
+        user.FirstName = Input.FirstName.Trim();
+        user.LastName = Input.LastName.Trim();
+        user.EmailConfirmed = true;
 
-        var userId = await UserManager.GetUserIdAsync(user);
-        var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
-        code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-        var callbackUrl = NavigationManager.GetUriWithQueryParameters(
-            NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
-            new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code, ["returnUrl"] = ReturnUrl });
+        await UserStore.SetUserNameAsync(user, Input.Email.Trim(), CancellationToken.None);
+        var emailStore = GetEmailStore();
+        await emailStore.SetEmailAsync(user, Input.Email.Trim(), CancellationToken.None);
 
-        await EmailSender.SendConfirmationLinkAsync(user, Input.Email, HtmlEncoder.Default.Encode(callbackUrl));
-
-        if (UserManager.Options.SignIn.RequireConfirmedAccount)
+        var result = await UserManager.CreateAsync(user, Input.Password);
+        if (!result.Succeeded)
         {
-            RedirectManager.RedirectTo(
-                "Account/RegisterConfirmation",
-                new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+            message = $"Hata: {string.Join(", ", result.Errors.Select(error => error.Description))}";
+            return;
         }
-        else
+
+        var roleResult = await UserManager.AddToRoleAsync(user, Input.Role);
+        if (!roleResult.Succeeded)
         {
-            await SignInManager.SignInAsync(user, isPersistent: false);
-            RedirectManager.RedirectTo(ReturnUrl);
+            message = $"Hata: {string.Join(", ", roleResult.Errors.Select(error => error.Description))}";
+            return;
         }
+
+        if (Input.Role == RoleNames.Athlete)
+        {
+            Db.AthleteProfiles.Add(new AthleteProfile { UserId = user.Id });
+            await Db.SaveChangesAsync();
+        }
+
+        Logger.LogInformation("Admin created a {Role} account.", Input.Role);
+        message = $"Başarılı: {Input.Email} için {RoleLabel(Input.Role)} hesabı oluşturuldu.";
+        Input = new();
     }
 
     private ApplicationUser CreateUser()
@@ -136,8 +143,7 @@
         }
         catch
         {
-            throw new InvalidOperationException($"Can't create an instance of '{nameof(ApplicationUser)}'. " +
-                $"Ensure that '{nameof(ApplicationUser)}' is not an abstract class and has a parameterless constructor.");
+            throw new InvalidOperationException($"{nameof(ApplicationUser)} örneği oluşturulamadı.");
         }
     }
 
@@ -145,38 +151,40 @@
     {
         if (!UserManager.SupportsUserEmail)
         {
-            throw new NotSupportedException("The default UI requires a user store with email support.");
+            throw new NotSupportedException("Kullanıcı deposu e-posta desteği sağlamıyor.");
         }
+
         return (IUserEmailStore<ApplicationUser>)UserStore;
     }
 
+    private static string RoleLabel(string role) => RoleOptions.First(x => x.Value == role).Label;
+
+    private sealed record RoleOption(string Value, string Label);
+
     private sealed class InputModel
     {
-        [Required]
-        [StringLength(100)]
-        [Display(Name = "Ad")]
+        [Required(ErrorMessage = "Ad zorunludur.")]
+        [StringLength(100, ErrorMessage = "Ad en fazla 100 karakter olabilir.")]
         public string FirstName { get; set; } = "";
 
-        [Required]
-        [StringLength(100)]
-        [Display(Name = "Soyad")]
+        [Required(ErrorMessage = "Soyad zorunludur.")]
+        [StringLength(100, ErrorMessage = "Soyad en fazla 100 karakter olabilir.")]
         public string LastName { get; set; } = "";
 
-        [Required]
-        [EmailAddress]
-        [Display(Name = "E-posta")]
+        [Required(ErrorMessage = "E-posta zorunludur.")]
+        [EmailAddress(ErrorMessage = "Geçerli bir e-posta adresi girin.")]
         public string Email { get; set; } = "";
 
-        [Required]
-        [StringLength(100, ErrorMessage = "{0} en az {2}, en fazla {1} karakter olmalıdır.", MinimumLength = 6)]
+        [Required(ErrorMessage = "Hesap türü zorunludur.")]
+        public string Role { get; set; } = RoleNames.Athlete;
+
+        [Required(ErrorMessage = "Şifre zorunludur.")]
+        [StringLength(100, ErrorMessage = "Şifre en az {2}, en fazla {1} karakter olmalıdır.", MinimumLength = 6)]
         [DataType(DataType.Password)]
-        [Display(Name = "Parola")]
         public string Password { get; set; } = "";
 
         [DataType(DataType.Password)]
-        [Display(Name = "Parola tekrar")]
-        [Compare("Password", ErrorMessage = "Parola ve tekrar alanı eşleşmiyor.")]
+        [Compare("Password", ErrorMessage = "Şifre ve tekrar alanı eşleşmiyor.")]
         public string ConfirmPassword { get; set; } = "";
     }
 }
-

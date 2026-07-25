@@ -1,0 +1,216 @@
+@page "/athlete/profile"
+@attribute [Authorize(Roles = RoleNames.Athlete)]
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using SporcuGelisim.Application.Common
+@using SporcuGelisim.Infrastructure.Data
+@using SporcuGelisim.Infrastructure.Identity
+@using SporcuGelisim.Domain.Entities
+
+@inject ApplicationDbContext Db
+@inject IAthleteProfileService AthleteProfileService
+@inject IBranchService BranchService
+@inject IFileStorageService FileStorageService
+@inject ICurrentUserService CurrentUser
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Profilim</PageTitle>
+
+<section class="content-card p-4">
+    <div class="page-heading">
+        <p class="dashboard-kicker">Sporcu Bilgileri</p>
+        <h1>Profilim</h1>
+        <p>Hesabınıza ait sporcu bilgilerini tamamlayın. Bu bilgiler antrenör ve yönetim süreçlerinde kullanılır.</p>
+    </div>
+
+    <StatusMessage Message="@message" />
+
+    @if (isLoading)
+    {
+        <div class="dashboard-loading">
+            <div class="spinner-border text-primary" role="status"></div>
+            <span>Profil yükleniyor...</span>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="Input" OnValidSubmit="SaveAsync" FormName="athlete-profile">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="alert alert-danger" role="alert" />
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="Input.NationalIdentityNumber" class="form-label">TC kimlik no</label>
+                    <InputText @bind-Value="Input.NationalIdentityNumber" id="Input.NationalIdentityNumber" class="form-control" maxlength="11" />
+                    <ValidationMessage For="() => Input.NationalIdentityNumber" class="text-danger" />
+                </div>
+                <div class="col-md-6">
+                    <label for="Input.PrimaryBranchId" class="form-label">Spor branşı</label>
+                    <InputSelect @bind-Value="Input.PrimaryBranchId" id="Input.PrimaryBranchId" class="form-select">
+                        <option value="">Seçiniz</option>
+                        @foreach (var branch in branches)
+                        {
+                            <option value="@branch.Id">@branch.Name</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => Input.PrimaryBranchId" class="text-danger" />
+                </div>
+                <div class="col-md-6">
+                    <label for="Input.PhoneNumber" class="form-label">Telefon no</label>
+                    <InputText @bind-Value="Input.PhoneNumber" id="Input.PhoneNumber" class="form-control" />
+                    <ValidationMessage For="() => Input.PhoneNumber" class="text-danger" />
+                </div>
+                <div class="col-md-6">
+                    <label for="Input.SecondaryPhoneNumber" class="form-label">2. telefon numarası (ebeveyn no)</label>
+                    <InputText @bind-Value="Input.SecondaryPhoneNumber" id="Input.SecondaryPhoneNumber" class="form-control" />
+                    <ValidationMessage For="() => Input.SecondaryPhoneNumber" class="text-danger" />
+                </div>
+                <div class="col-md-6">
+                    <label for="Input.ParentPhoneNumber" class="form-label">Ebeveyn no</label>
+                    <InputText @bind-Value="Input.ParentPhoneNumber" id="Input.ParentPhoneNumber" class="form-control" />
+                    <ValidationMessage For="() => Input.ParentPhoneNumber" class="text-danger" />
+                </div>
+                <div class="col-md-6">
+                    <label for="Input.BirthDate" class="form-label">Doğum tarihi</label>
+                    <InputDate @bind-Value="Input.BirthDate" id="Input.BirthDate" class="form-control" />
+                    <ValidationMessage For="() => Input.BirthDate" class="text-danger" />
+                </div>
+                <div class="col-12">
+                    <label for="Input.Address" class="form-label">Adres</label>
+                    <InputTextArea @bind-Value="Input.Address" id="Input.Address" class="form-control" rows="3" />
+                    <ValidationMessage For="() => Input.Address" class="text-danger" />
+                </div>
+                <div class="col-12">
+                    <label for="Input.Biography" class="form-label">Sporcu notu</label>
+                    <InputTextArea @bind-Value="Input.Biography" id="Input.Biography" class="form-control" rows="4" />
+                    <ValidationMessage For="() => Input.Biography" class="text-danger" />
+                </div>
+                <div class="col-12">
+                    <label for="ProfilePhoto" class="form-label">Görsel</label>
+                    <InputFile id="ProfilePhoto" class="form-control" OnChange="OnFileSelected" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
+                    <div class="form-help mt-2">JPG, PNG veya WEBP yükleyebilirsiniz. En fazla 5 MB.</div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-4">Profili Kaydet</button>
+        </EditForm>
+    }
+</section>
+
+@code {
+    private readonly ProfileInput Input = new();
+    private IReadOnlyList<BranchDto> branches = [];
+    private IBrowserFile? selectedFile;
+    private Guid athleteProfileId;
+    private bool isLoading = true;
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (CurrentUser.UserId is null)
+        {
+            message = "Hata: Profil bilgisi için oturum açmanız gerekir.";
+            isLoading = false;
+            return;
+        }
+
+        branches = await BranchService.GetTreeAsync(CancellationToken.None);
+        var profile = await Db.AthleteProfiles.FirstOrDefaultAsync(x => x.UserId == CurrentUser.UserId.Value, CancellationToken.None);
+        if (profile is null)
+        {
+            profile = new AthleteProfile { UserId = CurrentUser.UserId.Value };
+            Db.AthleteProfiles.Add(profile);
+            await Db.SaveChangesAsync(CancellationToken.None);
+        }
+
+        athleteProfileId = profile.Id;
+        var dto = await AthleteProfileService.GetAsync(athleteProfileId, CancellationToken.None);
+        Input.PrimaryBranchId = dto.PrimaryBranchId;
+        Input.NationalIdentityNumber = dto.NationalIdentityNumber;
+        Input.PhoneNumber = dto.PhoneNumber;
+        Input.SecondaryPhoneNumber = dto.SecondaryPhoneNumber;
+        Input.ParentPhoneNumber = dto.ParentPhoneNumber;
+        Input.Address = dto.Address;
+        Input.Biography = dto.Biography;
+        Input.BirthDate = dto.BirthDate.HasValue ? dto.BirthDate.Value.ToDateTime(TimeOnly.MinValue) : null;
+        isLoading = false;
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs args)
+    {
+        selectedFile = args.File;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            DateOnly? birthDate = Input.BirthDate.HasValue ? DateOnly.FromDateTime(Input.BirthDate.Value) : null;
+            await AthleteProfileService.UpdateAsync(
+                new UpdateAthleteProfileRequest(
+                    athleteProfileId,
+                    Input.PrimaryBranchId,
+                    Input.NationalIdentityNumber,
+                    Input.PhoneNumber,
+                    Input.SecondaryPhoneNumber,
+                    Input.ParentPhoneNumber,
+                    Input.Address,
+                    Input.Biography,
+                    birthDate),
+                CancellationToken.None);
+
+            if (selectedFile is not null && CurrentUser.UserId is not null)
+            {
+                await using var stream = selectedFile.OpenReadStream(5 * 1024 * 1024);
+                var file = await FileStorageService.SaveProfilePhotoAsync(
+                    new UploadProfilePhotoRequest(CurrentUser.UserId.Value, selectedFile.Name, selectedFile.ContentType, selectedFile.Size, stream),
+                    CancellationToken.None);
+
+                var user = await UserManager.FindByIdAsync(CurrentUser.UserId.Value.ToString());
+                if (user is not null)
+                {
+                    user.ProfilePhotoId = file.Id;
+                    await UserManager.UpdateAsync(user);
+                }
+            }
+
+            selectedFile = null;
+            message = "Başarılı: Profil bilgileriniz kaydedildi.";
+        }
+        catch (ValidationFailedException ex)
+        {
+            message = $"Hata: {string.Join(", ", ex.Errors.SelectMany(x => x.Value))}";
+        }
+        catch (Exception ex)
+        {
+            message = $"Hata: {ex.Message}";
+        }
+    }
+
+    private sealed class ProfileInput
+    {
+        public Guid? PrimaryBranchId { get; set; }
+
+        [RegularExpression(@"^\d{11}$", ErrorMessage = "TC kimlik no 11 rakam olmalıdır.")]
+        public string? NationalIdentityNumber { get; set; }
+
+        [StringLength(30, ErrorMessage = "Telefon no en fazla 30 karakter olabilir.")]
+        public string? PhoneNumber { get; set; }
+
+        [StringLength(30, ErrorMessage = "2. telefon numarası en fazla 30 karakter olabilir.")]
+        public string? SecondaryPhoneNumber { get; set; }
+
+        [StringLength(30, ErrorMessage = "Ebeveyn no en fazla 30 karakter olabilir.")]
+        public string? ParentPhoneNumber { get; set; }
+
+        [StringLength(500, ErrorMessage = "Adres en fazla 500 karakter olabilir.")]
+        public string? Address { get; set; }
+
+        [StringLength(2000, ErrorMessage = "Sporcu notu en fazla 2000 karakter olabilir.")]
+        public string? Biography { get; set; }
+
+        public DateTime? BirthDate { get; set; }
+    }
+}

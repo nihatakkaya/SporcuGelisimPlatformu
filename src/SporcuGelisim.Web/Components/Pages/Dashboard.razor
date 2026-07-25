@@ -68,7 +68,7 @@ else
                         <span>Branş ve kelime kullanım özetlerini görüntüleyin.</span>
                     </a>
                     <a class="dashboard-action" href="Account/Register">
-                        <strong>Kullanıcı kaydı aç</strong>
+                        <strong>Kayıt oluştur</strong>
                         <span>Sporcu, antrenör veya veli hesabı oluşturun.</span>
                     </a>
                 </AuthorizeView>
@@ -81,6 +81,10 @@ else
                 </AuthorizeView>
 
                 <AuthorizeView Roles="@RoleNames.Athlete">
+                    <a class="dashboard-action" href="athlete/profile">
+                        <strong>Profilimi tamamla</strong>
+                        <span>TC kimlik, telefon, adres, branş ve görsel bilgilerinizi güncelleyin.</span>
+                    </a>
                     <a class="dashboard-action" href="athlete/sessions">
                         <strong>Oturumlarımı aç</strong>
                         <span>Size ait antrenman ve gelişim oturumlarını görüntüleyin.</span>

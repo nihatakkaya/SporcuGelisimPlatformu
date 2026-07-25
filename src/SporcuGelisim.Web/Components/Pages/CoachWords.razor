@@ -1,78 +1,289 @@
 @page "/coach/words"
 @attribute [Authorize(Roles = RoleNames.Coach + "," + RoleNames.Admin)]
+@using System.ComponentModel.DataAnnotations
 @inject IMotivationWordService WordService
-@inject IBranchService BranchService
+@inject IAthleteRelationService AthleteRelationService
 
 <PageTitle>Kelime Havuzu</PageTitle>
-<h1>Kelime Havuzu</h1>
 
-<EditForm Model="input" OnValidSubmit="CreateWordAsync" FormName="word-create">
-    <DataAnnotationsValidator />
-    <div class="row g-2">
-        <div class="col-md-4">
-            <label class="form-label">Kelime</label>
-            <InputText class="form-control" @bind-Value="input.Text" />
+<section class="content-card p-4">
+    <div class="page-heading">
+        <p class="dashboard-kicker">Motivasyon</p>
+        <h1>Kelime Havuzu</h1>
+        <p>Antrenörler kendi kelimelerini ekleyebilir, düzenleyebilir, kaldırabilir ve erişebildikleri sporculara atayabilir.</p>
+    </div>
+
+    <StatusMessage Message="@message" />
+
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <EditForm Model="input" OnValidSubmit="SaveWordAsync" FormName="word-save">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="alert alert-danger" role="alert" />
+
+                <div class="mb-3">
+                    <label class="form-label" for="WordText">Kelime</label>
+                    <InputText id="WordText" class="form-control" @bind-Value="input.Text" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="WordDescription">Açıklama</label>
+                    <InputTextArea id="WordDescription" class="form-control" @bind-Value="input.Description" rows="3" />
+                </div>
+                <AuthorizeView Roles="@RoleNames.Admin" Context="authContext">
+                    <label class="form-check mb-3">
+                        <InputCheckbox class="form-check-input" @bind-Value="input.IsGlobal" />
+                        <span class="form-check-label">Global kelime</span>
+                    </label>
+                </AuthorizeView>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" type="submit">@(editingWordId.HasValue ? "Güncelle" : "Ekle")</button>
+                    @if (editingWordId.HasValue)
+                    {
+                        <button class="btn btn-outline-secondary" type="button" @onclick="CancelEdit">Vazgeç</button>
+                    }
+                </div>
+            </EditForm>
         </div>
-        <div class="col-md-4">
-            <label class="form-label">Açıklama</label>
-            <InputText class="form-control" @bind-Value="input.Description" />
-        </div>
-        <AuthorizeView Roles="@RoleNames.Admin" Context="authContext">
-            <div class="col-md-2 form-check mt-4">
-                <InputCheckbox class="form-check-input" @bind-Value="input.IsGlobal" />
-                <label class="form-check-label">Global</label>
-            </div>
-        </AuthorizeView>
-        <div class="col-md-2">
-            <button class="btn btn-primary mt-4" type="submit">Ekle</button>
+
+        <div class="col-lg-7">
+            <h2 class="h5">Aktif kelimeler</h2>
+            @if (words.Count == 0)
+            {
+                <div class="dashboard-empty">
+                    <strong>Henüz kelime yok.</strong>
+                    <p>İlk kelimeyi soldaki formdan ekleyebilirsiniz.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Kelime</th>
+                                <th>Açıklama</th>
+                                <th>Tür</th>
+                                <th class="text-end">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var word in words)
+                            {
+                                <tr>
+                                    <td>@word.Text</td>
+                                    <td>@word.Description</td>
+                                    <td>@(word.IsGlobal ? "Global" : "Antrenör")</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-secondary me-2" type="button" @onclick="() => EditWord(word)">Düzenle</button>
+                                        <button class="btn btn-sm btn-outline-danger" type="button" @onclick="() => DeactivateWordAsync(word)">Kaldır</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
         </div>
     </div>
-</EditForm>
+</section>
 
-<StatusMessage Message="@message" />
+<section class="content-card p-4 mt-4">
+    <div class="page-heading compact">
+        <p class="dashboard-kicker">Sporcu Atama</p>
+        <h2>Kelimeyi Sporcuya Ata</h2>
+    </div>
 
-<h2 class="h5 mt-4">Aktif kelimeler</h2>
-<ul class="list-group">
-    @foreach (var word in words)
+    <EditForm Model="assignmentInput" OnValidSubmit="AssignWordAsync" FormName="word-assign">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="alert alert-danger" role="alert" />
+
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label" for="AssignmentWord">Kelime</label>
+                <InputSelect id="AssignmentWord" class="form-select" @bind-Value="assignmentInput.WordId">
+                    <option value="">Seçiniz</option>
+                    @foreach (var word in words)
+                    {
+                        <option value="@word.Id">@word.Text</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label" for="AssignmentAthlete">Sporcu</label>
+                <InputSelect id="AssignmentAthlete" class="form-select" @bind-Value="assignmentInput.AthleteProfileId">
+                    <option value="">Seçiniz</option>
+                    @foreach (var athlete in athletes)
+                    {
+                        <option value="@athlete.Id">@athlete.FullName</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" type="submit" disabled="@(words.Count == 0 || athletes.Count == 0)">Ata</button>
+            </div>
+        </div>
+    </EditForm>
+
+    @if (athletes.Count == 0)
     {
-        <li class="list-group-item d-flex justify-content-between">
-            <span>@word.Text</span>
-            <span class="badge text-bg-secondary">@(word.IsGlobal ? "Global" : "Branş")</span>
-        </li>
+        <div class="dashboard-empty mt-3">
+            <strong>Atanabilir sporcu yok.</strong>
+            <p>Antrenör hesabının sporculara kelime atayabilmesi için admin tarafından aktif sporcu ilişkisi kurulmalıdır.</p>
+        </div>
     }
-</ul>
+
+    <h3 class="h5 mt-4">Aktif atamalar</h3>
+    @if (assignments.Count == 0)
+    {
+        <p class="text-muted mb-0">Henüz aktif kelime ataması yok.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th>Sporcu</th>
+                        <th>Kelime</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var assignment in assignments)
+                    {
+                        <tr>
+                            <td>@assignment.AthleteName</td>
+                            <td>@assignment.WordText</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-danger" type="button" @onclick="() => RemoveAssignmentAsync(assignment.Id)">Atamayı Kaldır</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
 
 @code {
     private WordInput input = new();
+    private AssignmentInput assignmentInput = new();
     private IReadOnlyList<MotivationWordDto> words = [];
-    private IReadOnlyList<BranchDto> branches = [];
+    private IReadOnlyList<AthleteProfileDto> athletes = [];
+    private IReadOnlyList<WordAssignmentDto> assignments = [];
+    private Guid? editingWordId;
     private string? message;
 
-    protected override async Task OnInitializedAsync()
-    {
-        branches = await BranchService.GetTreeAsync(CancellationToken.None);
-        words = await WordService.GetForBranchAsync(null, CancellationToken.None);
-    }
+    protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    private async Task CreateWordAsync()
+    private async Task SaveWordAsync()
     {
         try
         {
-            await WordService.CreateAsync(new CreateMotivationWordRequest(input.Text, input.Description, null, input.IsGlobal, branches.Take(1).Select(x => x.Id).ToList()), CancellationToken.None);
-            input = new();
-            words = await WordService.GetForBranchAsync(null, CancellationToken.None);
-            message = "Kelime eklendi.";
+            if (editingWordId.HasValue)
+            {
+                await WordService.UpdateAsync(new UpdateMotivationWordRequest(editingWordId.Value, input.Text, input.Description, null, input.IsGlobal, true, []), CancellationToken.None);
+                message = "Başarılı: Kelime güncellendi.";
+            }
+            else
+            {
+                await WordService.CreateAsync(new CreateMotivationWordRequest(input.Text, input.Description, null, input.IsGlobal, []), CancellationToken.None);
+                message = "Başarılı: Kelime eklendi.";
+            }
+
+            CancelEdit();
+            await LoadAsync();
         }
         catch (Exception ex)
         {
-            message = ex.Message;
+            message = $"Hata: {ex.Message}";
         }
+    }
+
+    private void EditWord(MotivationWordDto word)
+    {
+        editingWordId = word.Id;
+        input = new WordInput { Text = word.Text, Description = word.Description, IsGlobal = word.IsGlobal };
+    }
+
+    private async Task DeactivateWordAsync(MotivationWordDto word)
+    {
+        try
+        {
+            await WordService.UpdateAsync(new UpdateMotivationWordRequest(word.Id, word.Text, word.Description, word.ParentWordId, word.IsGlobal, false, []), CancellationToken.None);
+            message = "Başarılı: Kelime kaldırıldı.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"Hata: {ex.Message}";
+        }
+    }
+
+    private async Task AssignWordAsync()
+    {
+        if (!assignmentInput.WordId.HasValue || !assignmentInput.AthleteProfileId.HasValue)
+        {
+            message = "Hata: Kelime ve sporcu seçin.";
+            return;
+        }
+
+        try
+        {
+            await WordService.AssignAthletesAsync(new AssignWordToAthletesRequest(assignmentInput.WordId.Value, [assignmentInput.AthleteProfileId.Value]), CancellationToken.None);
+            assignmentInput = new();
+            message = "Başarılı: Kelime sporcuya atandı.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"Hata: {ex.Message}";
+        }
+    }
+
+    private async Task RemoveAssignmentAsync(Guid assignmentId)
+    {
+        try
+        {
+            await WordService.RemoveAthleteAssignmentAsync(assignmentId, CancellationToken.None);
+            message = "Başarılı: Kelime ataması kaldırıldı.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"Hata: {ex.Message}";
+        }
+    }
+
+    private void CancelEdit()
+    {
+        editingWordId = null;
+        input = new();
+    }
+
+    private async Task LoadAsync()
+    {
+        words = await WordService.GetForBranchAsync(null, CancellationToken.None);
+        athletes = await AthleteRelationService.GetRelatedAthletesAsync(CancellationToken.None);
+        assignments = await WordService.GetAthleteAssignmentsAsync(CancellationToken.None);
     }
 
     private sealed class WordInput
     {
+        [Required(ErrorMessage = "Kelime zorunludur.")]
+        [StringLength(120, ErrorMessage = "Kelime en fazla 120 karakter olabilir.")]
         public string Text { get; set; } = string.Empty;
+
+        [StringLength(1000, ErrorMessage = "Açıklama en fazla 1000 karakter olabilir.")]
         public string? Description { get; set; }
+
         public bool IsGlobal { get; set; }
+    }
+
+    private sealed class AssignmentInput
+    {
+        public Guid? WordId { get; set; }
+        public Guid? AthleteProfileId { get; set; }
     }
 }

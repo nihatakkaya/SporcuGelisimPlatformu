@@ -18,6 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\SporcuGelisim.Domain\SporcuGelisim.Domain.csproj" />
     <ProjectReference Include="..\..\src\SporcuGelisim.Application\SporcuGelisim.Application.csproj" />
     <ProjectReference Include="..\..\src\SporcuGelisim.Infrastructure\SporcuGelisim.Infrastructure.csproj" />
