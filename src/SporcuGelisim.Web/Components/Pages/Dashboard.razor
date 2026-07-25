@@ -38,7 +38,7 @@ else
                 <div class="hero-account-card">
                     <span>Aktif bölüm</span>
                     <strong>Hesap</strong>
-                    <a href="Account/Manage">Hesap bilgileri</a>
+                    <a href="/Account/Manage">Hesap bilgileri</a>
                 </div>
             </Authorized>
         </AuthorizeView>
@@ -76,51 +76,51 @@ else
 
             <div class="dashboard-actions">
                 <AuthorizeView Roles="@RoleNames.Admin">
-                    <a class="dashboard-action primary-action" href="Account/Register">
+                    <a class="dashboard-action primary-action" href="/Account/Register">
                         <strong>Kayıt oluştur</strong>
                         <span>Sporcu, antrenör, ebeveyn veya admin hesabı açın.</span>
                     </a>
-                    <a class="dashboard-action" href="admin/branches">
+                    <a class="dashboard-action" href="/admin/branches">
                         <strong>Branşları yönet</strong>
                         <span>Spor dallarını ve alt branşları düzenleyin.</span>
                     </a>
-                    <a class="dashboard-action" href="admin/reports">
+                    <a class="dashboard-action" href="/admin/reports">
                         <strong>Raporları incele</strong>
                         <span>Branş dağılımı ve kelime kullanım özetlerini görün.</span>
                     </a>
-                    <a class="dashboard-action" href="admin/relations">
+                    <a class="dashboard-action" href="/admin/relations">
                         <strong>Sporcu ataması yap</strong>
                         <span>Sporcuları sorumlu antrenör veya ebeveyn hesaplarına bağlayın.</span>
                     </a>
                 </AuthorizeView>
 
                 <AuthorizeView Roles="@RoleNames.Coach">
-                    <a class="dashboard-action primary-action" href="coach/athletes">
+                    <a class="dashboard-action primary-action" href="/coach/athletes">
                         <strong>Sporcularımı aç</strong>
                         <span>Size bağlı sporcuların bilgilerini ve oturumlarını inceleyin.</span>
                     </a>
-                    <a class="dashboard-action" href="coach/words">
+                    <a class="dashboard-action" href="/coach/words">
                         <strong>Kelime havuzunu yönet</strong>
                         <span>Kelimeleri ekleyin, düzenleyin ve sporculara atayın.</span>
                     </a>
                 </AuthorizeView>
 
                 <AuthorizeView Roles="@RoleNames.Athlete">
-                    <a class="dashboard-action primary-action" href="athlete/profile">
+                    <a class="dashboard-action primary-action" href="/athlete/profile">
                         <strong>Profilimi tamamla</strong>
                         <span>TC kimlik, telefon, adres, branş ve görsel bilgilerinizi güncelleyin.</span>
                     </a>
-                    <a class="dashboard-action" href="athlete/sessions">
+                    <a class="dashboard-action" href="/athlete/sessions">
                         <strong>Oturumlarımı aç</strong>
                         <span>Antrenman ve gelişim oturumlarınızı görüntüleyin.</span>
                     </a>
-                    <a class="dashboard-action" href="athlete/words">
+                    <a class="dashboard-action" href="/athlete/words">
                         <strong>Kelime havuzum</strong>
                         <span>Size atanmış kelimeleri görün ve antrenörünüze yeni kelime isteği gönderin.</span>
                     </a>
                 </AuthorizeView>
 
-                <a class="dashboard-action" href="feedback">
+                <a class="dashboard-action" href="/feedback">
                     <strong>Geri bildirimler</strong>
                     <span>Sporcu gelişim notlarını ve yorumları takip edin.</span>
                 </a>

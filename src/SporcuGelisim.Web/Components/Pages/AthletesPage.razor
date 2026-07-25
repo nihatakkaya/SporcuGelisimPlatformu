@@ -1,23 +1,27 @@
-@page "/coach/athletes"
-@page "/coach/athletes/{SelectedAthleteId:guid}"
-@attribute [Authorize(Roles = RoleNames.Coach + "," + RoleNames.Admin)]
+@page "/athletes"
+@page "/athletes/{SelectedAthleteId:guid}"
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
 @using SporcuGelisim.Domain.Enums
+@using SporcuGelisim.Infrastructure.Data
+@inject ApplicationDbContext Db
+@inject ICurrentUserService CurrentUser
 @inject IAthleteRelationService AthleteRelationService
 @inject IAthleteProfileService AthleteProfileService
 @inject IAthleteSessionService SessionService
 @inject IFeedbackService FeedbackService
 @inject IMotivationWordService WordService
 
-<PageTitle>Sporcularım</PageTitle>
+<PageTitle>Sporcular</PageTitle>
 
 <section class="page-hero compact-hero">
     <div>
-        <p class="dashboard-kicker">Antrenör Takibi</p>
-        <h1>Sporcularım</h1>
-        <p>Size bağlı sporcuları, branşlarını, iletişim bilgilerini, oturumlarını ve atanmış kelimelerini tek ekrandan takip edin.</p>
+        <p class="dashboard-kicker">Sporcular</p>
+        <h1>Sporcular</h1>
+        <p>Yetkiniz olan sporcular alfabetik sırada listelenir. İsme basarak sporcunun tüm bilgilerini görüntüleyebilirsiniz.</p>
     </div>
     <div class="hero-badge">
-        <span>Toplam sporcu</span>
+        <span>Toplam</span>
         <strong>@athletes.Count</strong>
     </div>
 </section>
@@ -33,8 +37,8 @@ else if (athletes.Count == 0)
 {
     <section class="content-card p-4">
         <div class="dashboard-empty">
-            <strong>Henüz size bağlı sporcu yok.</strong>
-            <p>Bu ekranın dolması için adminin sporcu ile antrenör arasında aktif ilişki kurması gerekir.</p>
+            <strong>Gösterilecek sporcu yok.</strong>
+            <p>Admin sporcu oluşturduktan ve gerekli atamaları yaptıktan sonra liste dolacaktır.</p>
         </div>
     </section>
 }
@@ -42,17 +46,18 @@ else
 {
     <section class="coach-athlete-layout">
         <aside class="athlete-list-panel">
-            <div class="list-toolbar">
-                <label for="AthleteSearch">Sporcu ara</label>
-                <input id="AthleteSearch" class="form-control" @bind="searchText" @bind:event="oninput" placeholder="Ad, branş veya telefon" />
-            </div>
-
             <div class="athlete-list">
-                @foreach (var athlete in filteredAthletes)
+                @foreach (var athlete in athletes)
                 {
-                    var isSelected = selectedAthlete?.Id == athlete.Id;
-                    <a class="athlete-list-item @(isSelected ? "selected" : null)" href="@($"/coach/athletes/{athlete.Id}")">
-                        <span class="athlete-avatar">@Initials(athlete)</span>
+                    <a class="athlete-list-item @(selectedAthlete?.Id == athlete.Id ? "selected" : null)" href="@($"/athletes/{athlete.Id}")">
+                        @if (!string.IsNullOrWhiteSpace(athlete.ProfilePhotoPath))
+                        {
+                            <img class="athlete-avatar-image" src="@PhotoUrl(athlete.ProfilePhotoPath)" alt="@DisplayName(athlete)" />
+                        }
+                        else
+                        {
+                            <span class="athlete-avatar">@Initials(athlete)</span>
+                        }
                         <span>
                             <strong>@DisplayName(athlete)</strong>
                             <small>@DisplayBranch(athlete)</small>
@@ -67,7 +72,7 @@ else
             {
                 <div class="dashboard-empty">
                     <strong>Sporcu seçin.</strong>
-                    <p>Detayları görmek için soldaki listeden bir sporcu seçin.</p>
+                    <p>Detayları görmek için soldaki listeden bir sporcu adına basın.</p>
                 </div>
             }
             else
@@ -89,30 +94,12 @@ else
                 </div>
 
                 <div class="detail-stat-grid">
-                    <div>
-                        <span>TC kimlik no</span>
-                        <strong>@DisplayValue(selectedAthlete.NationalIdentityNumber)</strong>
-                    </div>
-                    <div>
-                        <span>Telefon</span>
-                        <strong>@DisplayValue(selectedAthlete.PhoneNumber)</strong>
-                    </div>
-                    <div>
-                        <span>2. telefon</span>
-                        <strong>@DisplayValue(selectedAthlete.SecondaryPhoneNumber)</strong>
-                    </div>
-                    <div>
-                        <span>Ebeveyn no</span>
-                        <strong>@DisplayValue(selectedAthlete.ParentPhoneNumber)</strong>
-                    </div>
-                    <div>
-                        <span>Doğum tarihi</span>
-                        <strong>@(selectedAthlete.BirthDate?.ToString("dd.MM.yyyy") ?? "Girilmemiş")</strong>
-                    </div>
-                    <div>
-                        <span>Adres</span>
-                        <strong>@DisplayValue(selectedAthlete.Address)</strong>
-                    </div>
+                    <div><span>TC kimlik no</span><strong>@DisplayValue(selectedAthlete.NationalIdentityNumber)</strong></div>
+                    <div><span>Telefon</span><strong>@DisplayValue(selectedAthlete.PhoneNumber)</strong></div>
+                    <div><span>2. telefon</span><strong>@DisplayValue(selectedAthlete.SecondaryPhoneNumber)</strong></div>
+                    <div><span>Ebeveyn no</span><strong>@DisplayValue(selectedAthlete.ParentPhoneNumber)</strong></div>
+                    <div><span>Doğum tarihi</span><strong>@(selectedAthlete.BirthDate?.ToString("dd.MM.yyyy") ?? "Girilmemiş")</strong></div>
+                    <div><span>Adres</span><strong>@DisplayValue(selectedAthlete.Address)</strong></div>
                 </div>
 
                 <div class="detail-sections">
@@ -123,7 +110,7 @@ else
                         </div>
                         @if (sessions.Count == 0)
                         {
-                            <p class="muted-line">Bu sporcu için oturum kaydı yok.</p>
+                            <p class="muted-line">Oturum kaydı yok.</p>
                         }
                         else
                         {
@@ -132,7 +119,7 @@ else
                                 {
                                     <div>
                                         <strong>@session.Title</strong>
-                                        <span>@session.SessionDate.ToLocalTime().ToString("dd.MM.yyyy") · @StatusText(session.Status)</span>
+                                        <span>@session.SessionDate.ToLocalTime().ToString("dd.MM.yyyy") - @StatusText(session.Status)</span>
                                     </div>
                                 }
                             </div>
@@ -141,12 +128,12 @@ else
 
                     <section>
                         <div class="section-title-row">
-                            <h3>Atanmış Kelimeler</h3>
+                            <h3>Kelimeler</h3>
                             <span>@assignedWords.Count kayıt</span>
                         </div>
                         @if (assignedWords.Count == 0)
                         {
-                            <p class="muted-line">Bu sporcuya atanmış kelime yok.</p>
+                            <p class="muted-line">Atanmış kelime yok.</p>
                         }
                         else
                         {
@@ -166,7 +153,7 @@ else
                         </div>
                         @if (feedbacks.Count == 0)
                         {
-                            <p class="muted-line">Bu sporcu için görüntüleyebileceğiniz geri bildirim yok.</p>
+                            <p class="muted-line">Görüntülenebilir geri bildirim yok.</p>
                         }
                         else
                         {
@@ -197,37 +184,49 @@ else
     private IReadOnlyList<WordAssignmentDto> allAssignments = [];
     private IReadOnlyList<WordAssignmentDto> assignedWords = [];
     private AthleteProfileDto? selectedAthlete;
-    private string? searchText;
     private bool isLoading = true;
 
-    private IEnumerable<AthleteProfileDto> filteredAthletes =>
-        string.IsNullOrWhiteSpace(searchText)
-            ? athletes
-            : athletes.Where(x =>
-                Contains(x.FullName, searchText) ||
-                Contains(x.BranchName, searchText) ||
-                Contains(x.PhoneNumber, searchText));
-
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        athletes = await AthleteRelationService.GetRelatedAthletesAsync(CancellationToken.None);
+        isLoading = true;
+        athletes = (await LoadAthletesAsync()).OrderBy(x => DisplayName(x)).ToList();
         allAssignments = await WordService.GetAthleteAssignmentsAsync(CancellationToken.None);
 
         var selectedId = SelectedAthleteId ?? athletes.FirstOrDefault()?.Id;
-        if (selectedId.HasValue)
+        if (selectedId.HasValue && athletes.Any(x => x.Id == selectedId.Value))
         {
             await LoadSelectedAsync(selectedId.Value);
+        }
+        else
+        {
+            selectedAthlete = null;
+            sessions = [];
+            feedbacks = [];
+            assignedWords = [];
         }
 
         isLoading = false;
     }
 
-    protected override async Task OnParametersSetAsync()
+    private async Task<IReadOnlyList<AthleteProfileDto>> LoadAthletesAsync()
     {
-        if (!isLoading && SelectedAthleteId.HasValue && selectedAthlete?.Id != SelectedAthleteId.Value)
+        if (CurrentUser.Roles.Contains(RoleNames.Admin) || CurrentUser.Roles.Contains(RoleNames.Coach) || CurrentUser.Roles.Contains(RoleNames.Parent))
         {
-            await LoadSelectedAsync(SelectedAthleteId.Value);
+            return await AthleteRelationService.GetRelatedAthletesAsync(CancellationToken.None);
         }
+
+        if (CurrentUser.Roles.Contains(RoleNames.Athlete) && CurrentUser.UserId is not null)
+        {
+            var athleteProfileId = await Db.AthleteProfiles.AsNoTracking()
+                .Where(x => x.UserId == CurrentUser.UserId.Value)
+                .Select(x => (Guid?)x.Id)
+                .FirstOrDefaultAsync(CancellationToken.None);
+            return athleteProfileId.HasValue
+                ? [await AthleteProfileService.GetAsync(athleteProfileId.Value, CancellationToken.None)]
+                : [];
+        }
+
+        return [];
     }
 
     private async Task LoadSelectedAsync(Guid athleteId)
@@ -237,9 +236,6 @@ else
         feedbacks = await FeedbackService.GetVisibleForAthleteAsync(athleteId, CancellationToken.None);
         assignedWords = allAssignments.Where(x => x.AthleteProfileId == athleteId && x.IsActive).ToList();
     }
-
-    private static bool Contains(string? value, string query) =>
-        value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
 
     private static string DisplayName(AthleteProfileDto athlete) =>
         string.IsNullOrWhiteSpace(athlete.FullName) ? "İsimsiz sporcu" : athlete.FullName;

@@ -6,53 +6,56 @@
     <AuthorizeView>
         <Authorized>
             <li class="nav-item">
-                <NavLink class="nav-link" href="dashboard">Panel</NavLink>
+                <NavLink class="nav-link" href="/dashboard">Panel</NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="/athletes">Sporcular</NavLink>
             </li>
         </Authorized>
     </AuthorizeView>
     <AuthorizeView Roles="@RoleNames.Admin">
         <li class="nav-item">
-            <NavLink class="nav-link" href="admin/branches">Branşlar</NavLink>
+            <NavLink class="nav-link" href="/admin/branches">Branşlar</NavLink>
         </li>
         <li class="nav-item">
-            <NavLink class="nav-link" href="admin/reports">Raporlar</NavLink>
+            <NavLink class="nav-link" href="/admin/reports">Raporlar</NavLink>
         </li>
         <li class="nav-item">
-            <NavLink class="nav-link" href="admin/relations">Sporcu Atama</NavLink>
+            <NavLink class="nav-link" href="/admin/relations">Sporcu Atama</NavLink>
         </li>
         <li class="nav-item">
-            <NavLink class="nav-link" href="Account/Register">Kayıt Oluşturma</NavLink>
+            <NavLink class="nav-link" href="/Account/Register">Kayıt Oluşturma</NavLink>
         </li>
     </AuthorizeView>
     <AuthorizeView Roles="@RoleNames.Coach">
         <li class="nav-item">
-            <NavLink class="nav-link" href="coach/athletes">Sporcularım</NavLink>
+            <NavLink class="nav-link" href="/coach/athletes">Sporcularım</NavLink>
         </li>
         <li class="nav-item">
-            <NavLink class="nav-link" href="coach/words">Kelime Havuzu</NavLink>
+            <NavLink class="nav-link" href="/coach/words">Kelime Havuzu</NavLink>
         </li>
     </AuthorizeView>
     <AuthorizeView Roles="@RoleNames.Athlete">
         <li class="nav-item">
-            <NavLink class="nav-link" href="athlete/profile">Profilim</NavLink>
+            <NavLink class="nav-link" href="/athlete/profile">Profilim</NavLink>
         </li>
         <li class="nav-item">
-            <NavLink class="nav-link" href="athlete/sessions">Oturumlarım</NavLink>
+            <NavLink class="nav-link" href="/athlete/sessions">Oturumlarım</NavLink>
         </li>
         <li class="nav-item">
-            <NavLink class="nav-link" href="athlete/words">Kelime Havuzum</NavLink>
+            <NavLink class="nav-link" href="/athlete/words">Kelime Havuzum</NavLink>
         </li>
     </AuthorizeView>
     <AuthorizeView>
         <Authorized>
             <li class="nav-item">
-                <NavLink class="nav-link" href="feedback">Geri Bildirimler</NavLink>
+                <NavLink class="nav-link" href="/feedback">Geri Bildirimler</NavLink>
             </li>
             <li class="nav-item">
-                <NavLink class="nav-link account-link" href="Account/Manage">Hesap</NavLink>
+                <NavLink class="nav-link account-link" href="/Account/Manage">Hesap</NavLink>
             </li>
             <li class="nav-item">
-                <form action="Account/Logout" method="post" class="logout-form">
+                <form action="/Account/Logout" method="post" class="logout-form">
                     <AntiforgeryToken />
                     <input type="hidden" name="ReturnUrl" value="@currentUrl" />
                     <button type="submit" class="nav-link logout-button">Çıkış</button>

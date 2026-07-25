@@ -23,3 +23,8 @@ Kritik kurallar:
 - Sporcu, yalnızca kendisinden sorumlu antrenöre geri bildirim gönderebilmelidir; antrenör sadece kendisine gelen geri bildirimleri görmelidir.
 - Sporcu, kendisine atanmış kelime havuzunu görebilmeli ve yeni kelime önerisini sorumlu antrenöre istek olarak gönderebilmelidir. Antrenör isteği onaylarsa kelime antrenör havuzuna eklenmeli ve sporcuya atanmalıdır.
 - Üst menüde oturum e-postası yerine genel `Hesap` bağlantısı gösterilmelidir.
+- Üst menüde `Sporcular` bağlantısı bulunmalı; kullanıcı yetkisine göre görebildiği sporcular alfabetik sırada, solda görsel ve sağda ad soyad olacak şekilde listelenmelidir.
+- Sporcu adına basıldığında sporcunun tüm profil, iletişim, branş, oturum, kelime ve geri bildirim bilgileri detay sayfasında görüntülenmelidir.
+- Admin, branşları ekleyebilmenin yanında düzenleyebilmeli ve güvenli şekilde pasife alarak silebilmelidir.
+- Sporcu atama ekranında sporcu ve hesap seçimi aramalı, açılır liste biçiminde olmalı; yazılan harflere göre filtreleme yapılmalıdır.
+- Sporcu profil güncelleme formu, görsel yüklemede Blazor Server bağlantısına bağımlı kalmamak için yetkili klasik multipart POST akışıyla kaydedilmelidir.

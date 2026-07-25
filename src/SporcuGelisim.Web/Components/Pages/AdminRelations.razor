@@ -1,4 +1,5 @@
 @page "/admin/relations"
+@rendermode InteractiveServer
 @attribute [Authorize(Roles = RoleNames.Admin)]
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.EntityFrameworkCore
@@ -13,7 +14,7 @@
     <div>
         <p class="dashboard-kicker">Admin</p>
         <h1>Sporcu Atama</h1>
-        <p>Sporcuları sorumlu antrenör veya ebeveyn hesaplarına bağlayın. Antrenörler yalnızca burada kendilerine atanmış sporcuları görebilir.</p>
+        <p>Sporcuları sorumlu antrenör veya ebeveyn hesaplarına bağlayın. Antrenörler yalnızca burada kendilerine atanmış sporcuları görür.</p>
     </div>
     <div class="hero-badge">
         <span>Aktif ilişki</span>
@@ -29,38 +30,53 @@
     <EditForm Model="input" OnValidSubmit="AssignAsync" FormName="relation-assign">
         <DataAnnotationsValidator />
         <ValidationSummary class="alert alert-danger" role="alert" />
-        <div class="row g-3 align-items-end">
+
+        <div class="row g-3">
             <div class="col-md-4">
-                <label class="form-label" for="AthleteProfileId">Sporcu</label>
-                <InputSelect id="AthleteProfileId" class="form-select" @bind-Value="input.AthleteProfileId">
-                    <option value="">Seçiniz</option>
-                    @foreach (var athlete in athletes)
-                    {
-                        <option value="@athlete.Id">@athlete.Name (@athlete.BranchName)</option>
-                    }
-                </InputSelect>
-            </div>
-            <div class="col-md-3">
                 <label class="form-label" for="RelationType">İlişki türü</label>
                 <InputSelect id="RelationType" class="form-select" @bind-Value="input.RelationType">
                     <option value="@AthleteRelationType.Coach">Antrenör</option>
                     <option value="@AthleteRelationType.Parent">Ebeveyn</option>
                 </InputSelect>
             </div>
-            <div class="col-md-4">
-                <label class="form-label" for="RelatedUserId">Hesap</label>
-                <InputSelect id="RelatedUserId" class="form-select" @bind-Value="input.RelatedUserId">
-                    <option value="">Seçiniz</option>
-                    @foreach (var user in TargetUsers())
-                    {
-                        <option value="@user.Id">@user.Name</option>
-                    }
-                </InputSelect>
-            </div>
-            <div class="col-md-1">
-                <button class="btn btn-primary w-100" type="submit">Ata</button>
-            </div>
         </div>
+
+        <div class="relation-picker-grid mt-3">
+            <details class="picker-panel" open>
+                <summary>Sporcu seç</summary>
+                <input class="form-control mt-3" @bind="athleteSearch" @bind:event="oninput" placeholder="Sporcu adı veya branş yazın" />
+                <div class="picker-list">
+                    @foreach (var athlete in FilterAthletes())
+                    {
+                        <button class="picker-row @(input.AthleteProfileId == athlete.Id ? "selected" : null)" type="button" @onclick="() => SelectAthlete(athlete)">
+                            <strong>@athlete.Name</strong>
+                            <span>@athlete.BranchName</span>
+                        </button>
+                    }
+                </div>
+            </details>
+
+            <details class="picker-panel" open>
+                <summary>Hesap seç</summary>
+                <input class="form-control mt-3" @bind="userSearch" @bind:event="oninput" placeholder="Ad soyad yazın" />
+                <div class="picker-list">
+                    @foreach (var user in FilterUsers())
+                    {
+                        <button class="picker-row @(input.RelatedUserId == user.Id ? "selected" : null)" type="button" @onclick="() => SelectUser(user)">
+                            <strong>@user.Name</strong>
+                            <span>@(input.RelationType == AthleteRelationType.Coach ? "Antrenör" : "Ebeveyn")</span>
+                        </button>
+                    }
+                </div>
+            </details>
+        </div>
+
+        <div class="selected-summary mt-3">
+            <span>Sporcu: <strong>@(selectedAthlete?.Name ?? "Seçilmedi")</strong></span>
+            <span>Hesap: <strong>@(selectedUser?.Name ?? "Seçilmedi")</strong></span>
+        </div>
+
+        <button class="btn btn-primary mt-3" type="submit" disabled="@(!input.AthleteProfileId.HasValue || !input.RelatedUserId.HasValue)">Ata</button>
     </EditForm>
 
     <StatusMessage Message="@message" />
@@ -113,12 +129,38 @@
     private IReadOnlyList<UserOption> coaches = [];
     private IReadOnlyList<UserOption> parents = [];
     private IReadOnlyList<RelationRow> relations = [];
+    private AthleteOption? selectedAthlete;
+    private UserOption? selectedUser;
+    private string? athleteSearch;
+    private string? userSearch;
     private string? message;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    private IEnumerable<UserOption> TargetUsers() =>
-        input.RelationType == AthleteRelationType.Parent ? parents : coaches;
+    private IEnumerable<AthleteOption> FilterAthletes() =>
+        string.IsNullOrWhiteSpace(athleteSearch)
+            ? athletes
+            : athletes.Where(x => Contains(x.Name, athleteSearch) || Contains(x.BranchName, athleteSearch));
+
+    private IEnumerable<UserOption> FilterUsers()
+    {
+        var source = input.RelationType == AthleteRelationType.Parent ? parents : coaches;
+        return string.IsNullOrWhiteSpace(userSearch)
+            ? source
+            : source.Where(x => Contains(x.Name, userSearch));
+    }
+
+    private void SelectAthlete(AthleteOption athlete)
+    {
+        selectedAthlete = athlete;
+        input.AthleteProfileId = athlete.Id;
+    }
+
+    private void SelectUser(UserOption user)
+    {
+        selectedUser = user;
+        input.RelatedUserId = user.Id;
+    }
 
     private async Task AssignAsync()
     {
@@ -126,6 +168,10 @@
         {
             await RelationService.AssignAsync(new AssignAthleteRelationRequest(input.AthleteProfileId!.Value, input.RelatedUserId!.Value, input.RelationType), CancellationToken.None);
             input = new();
+            selectedAthlete = null;
+            selectedUser = null;
+            athleteSearch = null;
+            userSearch = null;
             message = "Başarılı: Sporcu ataması yapıldı.";
             await LoadAsync();
         }
@@ -175,6 +221,9 @@
             orderby user.FirstName, user.LastName
             select new UserOption(user.Id, (user.FirstName + " " + user.LastName).Trim()))
             .ToListAsync(CancellationToken.None);
+
+    private static bool Contains(string? value, string query) =>
+        value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
 
     private sealed class RelationInput
     {

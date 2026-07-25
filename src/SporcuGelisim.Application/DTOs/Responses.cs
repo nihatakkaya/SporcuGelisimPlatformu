@@ -2,7 +2,7 @@ using SporcuGelisim.Domain.Enums;
 
 namespace SporcuGelisim.Application.DTOs;
 
-public sealed record BranchDto(Guid Id, string Name, string Slug, Guid? ParentBranchId, bool IsActive, int DisplayOrder);
+public sealed record BranchDto(Guid Id, string Name, string Slug, string? Description, Guid? ParentBranchId, bool IsActive, int DisplayOrder);
 public sealed record MotivationWordDto(Guid Id, string Text, string? Description, Guid? ParentWordId, bool IsGlobal, bool IsActive, Guid? CreatedByUserId);
 public sealed record AthleteProfileDto(
     Guid Id,

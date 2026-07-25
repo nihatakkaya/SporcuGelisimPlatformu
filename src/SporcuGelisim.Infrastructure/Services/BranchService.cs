@@ -119,5 +119,5 @@ public sealed class BranchService(ApplicationDbContext db, ICurrentUserService c
             .Replace(" ", "-");
 
     private static BranchDto ToDto(SportBranch entity) =>
-        new(entity.Id, entity.Name, entity.Slug, entity.ParentBranchId, entity.IsActive, entity.DisplayOrder);
+        new(entity.Id, entity.Name, entity.Slug, entity.Description, entity.ParentBranchId, entity.IsActive, entity.DisplayOrder);
 }
