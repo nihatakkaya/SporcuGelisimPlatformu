@@ -2,20 +2,122 @@
 @attribute [Authorize]
 @inject IDashboardService DashboardService
 
-<PageTitle>Dashboard</PageTitle>
-<h1>Dashboard</h1>
+<PageTitle>Panel</PageTitle>
 
 @if (summary is null)
 {
-    <p>Yükleniyor...</p>
+    <section class="dashboard-loading" aria-live="polite">
+        <div class="spinner-border text-primary" role="status"></div>
+        <span>Panel yükleniyor...</span>
+    </section>
 }
 else
 {
-    <div class="row g-3">
-        <div class="col-md-3"><div class="border rounded p-3"><strong>@summary.AthleteCount</strong><div>Sporcu</div></div></div>
-        <div class="col-md-3"><div class="border rounded p-3"><strong>@summary.CoachCount</strong><div>Antrenör</div></div></div>
-        <div class="col-md-3"><div class="border rounded p-3"><strong>@summary.ParentCount</strong><div>Ebeveyn</div></div></div>
-        <div class="col-md-3"><div class="border rounded p-3"><strong>@summary.SessionCount</strong><div>Oturum</div></div></div>
+    <section class="dashboard-hero">
+        <div>
+            <p class="dashboard-kicker">Sporcu Gelişim Platformu</p>
+            <h1>Yönetim Paneli</h1>
+            <p class="dashboard-intro">Sporcu kayıtları, branşlar, oturumlar ve motivasyon kelimeleri için genel durumu buradan takip edebilirsiniz.</p>
+        </div>
+        <AuthorizeView>
+            <Authorized>
+                <div class="dashboard-user">
+                    <span>Aktif hesap</span>
+                    <strong>@context.User.Identity?.Name</strong>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </section>
+
+    <section class="dashboard-stats" aria-label="Genel özet">
+        <article class="dashboard-stat">
+            <span>Sporcu</span>
+            <strong>@summary.AthleteCount</strong>
+        </article>
+        <article class="dashboard-stat">
+            <span>Antrenör</span>
+            <strong>@summary.CoachCount</strong>
+        </article>
+        <article class="dashboard-stat">
+            <span>Veli</span>
+            <strong>@summary.ParentCount</strong>
+        </article>
+        <article class="dashboard-stat">
+            <span>Oturum</span>
+            <strong>@summary.SessionCount</strong>
+        </article>
+    </section>
+
+    <div class="dashboard-grid">
+        <section class="dashboard-panel">
+            <div class="dashboard-panel-header">
+                <div>
+                    <p class="dashboard-kicker">Başlangıç</p>
+                    <h2>Sıradaki işlemler</h2>
+                </div>
+            </div>
+
+            <div class="dashboard-actions">
+                <AuthorizeView Roles="@RoleNames.Admin">
+                    <a class="dashboard-action" href="admin/branches">
+                        <strong>Branşları yönet</strong>
+                        <span>Spor dallarını ve alt branşları düzenleyin.</span>
+                    </a>
+                    <a class="dashboard-action" href="admin/reports">
+                        <strong>Raporları incele</strong>
+                        <span>Branş ve kelime kullanım özetlerini görüntüleyin.</span>
+                    </a>
+                    <a class="dashboard-action" href="Account/Register">
+                        <strong>Kullanıcı kaydı aç</strong>
+                        <span>Sporcu, antrenör veya veli hesabı oluşturun.</span>
+                    </a>
+                </AuthorizeView>
+
+                <AuthorizeView Roles="@RoleNames.Coach">
+                    <a class="dashboard-action" href="coach/words">
+                        <strong>Kelime havuzunu yönet</strong>
+                        <span>Antrenman süreçlerinde kullanılacak motivasyon kelimelerini hazırlayın.</span>
+                    </a>
+                </AuthorizeView>
+
+                <AuthorizeView Roles="@RoleNames.Athlete">
+                    <a class="dashboard-action" href="athlete/sessions">
+                        <strong>Oturumlarımı aç</strong>
+                        <span>Size ait antrenman ve gelişim oturumlarını görüntüleyin.</span>
+                    </a>
+                </AuthorizeView>
+
+                <a class="dashboard-action" href="feedback">
+                    <strong>Geri bildirimleri aç</strong>
+                    <span>Sporcu gelişim notlarını ve yorumları takip edin.</span>
+                </a>
+            </div>
+        </section>
+
+        <section class="dashboard-panel">
+            <div class="dashboard-panel-header">
+                <div>
+                    <p class="dashboard-kicker">Veri Durumu</p>
+                    <h2>Kurulum özeti</h2>
+                </div>
+            </div>
+
+            @if (summary.AthleteCount == 0 && summary.SessionCount == 0)
+            {
+                <div class="dashboard-empty">
+                    <strong>Henüz sporcu ve oturum kaydı yok.</strong>
+                    <p>Önce kullanıcı kaydı oluşturup sporcu profillerini tamamlayın. Ardından oturum ve geri bildirim akışı kullanılabilir hale gelir.</p>
+                </div>
+            }
+            else
+            {
+                <ul class="dashboard-checklist">
+                    <li>Sporcu kayıtları oluşturuldu.</li>
+                    <li>Oturum kayıtları takip ediliyor.</li>
+                    <li>Rapor ekranları güncel verilerle çalışıyor.</li>
+                </ul>
+            }
+        </section>
     </div>
 }
 
