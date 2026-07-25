@@ -28,6 +28,23 @@ public sealed class SecurityPageTests
         Assert.True((int)response.StatusCode is 302 or 401);
     }
 
+    [Fact]
+    public async Task Anonymous_user_cannot_assign_athlete_relation()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["RelationType"] = "Coach",
+            ["AthleteProfileId"] = Guid.NewGuid().ToString(),
+            ["RelatedCoachUserId"] = Guid.NewGuid().ToString()
+        });
+
+        var response = await client.PostAsync("/admin/relations/assign", content);
+
+        Assert.True((int)response.StatusCode is 302 or 401);
+    }
+
     [Theory]
     [InlineData("/coach/words")]
     [InlineData("/coach/athletes")]

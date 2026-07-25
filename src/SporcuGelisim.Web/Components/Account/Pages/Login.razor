@@ -139,7 +139,7 @@
                 await UserManager.UpdateAsync(user);
             }
 
-            RedirectManager.RedirectTo(ReturnUrl ?? "dashboard");
+            RedirectManager.RedirectTo(ReturnUrl ?? "/dashboard");
         }
         else if (result.RequiresTwoFactor)
         {

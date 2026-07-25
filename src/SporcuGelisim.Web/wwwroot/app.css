@@ -989,6 +989,35 @@ a,
     color: #fff;
 }
 
+.relation-type-static label {
+    margin: 0;
+}
+
+.relation-type-static input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.relation-type-static span {
+    display: block;
+    padding: 9px 16px;
+    border-radius: 6px;
+    color: #405261;
+    cursor: pointer;
+    font-weight: 850;
+}
+
+.relation-type-static input:checked + span {
+    background: var(--school-blue-dark);
+    color: #fff;
+}
+
+.relation-type-static:has(input[value="Coach"]:checked) ~ .static-relation-picker .parent-targets,
+.relation-type-static:has(input[value="Parent"]:checked) ~ .static-relation-picker .coach-targets {
+    display: none;
+}
+
 .relation-picker-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1027,8 +1056,30 @@ a,
     text-align: left;
 }
 
+.radio-picker-row {
+    cursor: pointer;
+}
+
+.radio-picker-row input {
+    margin-right: 10px;
+}
+
+.radio-picker-row span {
+    display: inline-block;
+    vertical-align: top;
+}
+
+.radio-picker-row small {
+    display: block;
+    margin-top: 3px;
+    color: #667582;
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
 .picker-row.selected,
-.picker-row:hover {
+.picker-row:hover,
+.radio-picker-row:has(input:checked) {
     border-color: var(--school-teal);
     background: #f2fbf9;
 }

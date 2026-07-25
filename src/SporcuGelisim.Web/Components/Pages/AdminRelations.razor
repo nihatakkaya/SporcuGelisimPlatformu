@@ -1,16 +1,10 @@
 @page "/admin/relations"
-@rendermode InteractiveServer
 @attribute [Authorize(Roles = RoleNames.Admin)]
-@using System.ComponentModel.DataAnnotations
 @using Microsoft.EntityFrameworkCore
-@using Microsoft.AspNetCore.Identity
-@using SporcuGelisim.Domain.Entities
 @using SporcuGelisim.Domain.Enums
 @using SporcuGelisim.Infrastructure.Data
-@using SporcuGelisim.Infrastructure.Identity
 @inject ApplicationDbContext Db
-@inject AuthenticationStateProvider AuthenticationStateProvider
-@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
 
 <PageTitle>Sporcu Atama</PageTitle>
 
@@ -18,7 +12,7 @@
     <div>
         <p class="dashboard-kicker">Admin</p>
         <h1>Sporcu Atama</h1>
-        <p>Sporcuları sorumlu antrenör veya ebeveyn hesaplarına bağlayın. Antrenörler yalnızca burada kendilerine atanmış sporcuları görür.</p>
+        <p>Soldan sporcuyu, sağdan antrenör veya ebeveyn hesabını seçerek aktif ilişki oluşturun.</p>
     </div>
     <div class="hero-badge">
         <span>Aktif ilişki</span>
@@ -31,58 +25,74 @@
         <h2>Yeni ilişki oluştur</h2>
     </div>
 
-    <EditForm Model="input" OnValidSubmit="AssignAsync" FormName="relation-assign">
-        <DataAnnotationsValidator />
-        <ValidationSummary class="alert alert-danger" role="alert" />
-
-        <div class="relation-type-switch" role="tablist" aria-label="İlişki türü">
-            <button class="@(input.RelationType == AthleteRelationType.Coach ? "active" : null)" type="button" @onclick="() => SetRelationType(AthleteRelationType.Coach)">
-                Antrenör
-            </button>
-            <button class="@(input.RelationType == AthleteRelationType.Parent ? "active" : null)" type="button" @onclick="() => SetRelationType(AthleteRelationType.Parent)">
-                Ebeveyn
-            </button>
-        </div>
-
-        <div class="relation-picker-grid mt-3">
-            <details class="picker-panel" open>
-                <summary>Sporcu seç</summary>
-                <input class="form-control mt-3" @bind="athleteSearch" @bind:event="oninput" placeholder="Sporcu adı veya branş yazın" />
-                <div class="picker-list">
-                    @foreach (var athlete in FilterAthletes())
-                    {
-                        <button class="picker-row @(input.AthleteProfileId == athlete.Id ? "selected" : null)" type="button" @onclick="() => SelectAthlete(athlete)">
-                            <strong>@athlete.Name</strong>
-                            <span>@athlete.BranchName</span>
-                        </button>
-                    }
-                </div>
-            </details>
-
-            <details class="picker-panel" open>
-                <summary>@(input.RelationType == AthleteRelationType.Coach ? "Antrenör seç" : "Ebeveyn seç")</summary>
-                <input class="form-control mt-3" @bind="userSearch" @bind:event="oninput" placeholder="Ad soyad yazın" />
-                <div class="picker-list">
-                    @foreach (var user in FilterUsers())
-                    {
-                        <button class="picker-row @(input.RelatedUserId == user.Id ? "selected" : null)" type="button" @onclick="() => SelectUser(user)">
-                            <strong>@user.Name</strong>
-                            <span>@(input.RelationType == AthleteRelationType.Coach ? "Antrenör" : "Ebeveyn")</span>
-                        </button>
-                    }
-                </div>
-            </details>
-        </div>
-
-        <div class="selected-summary mt-3">
-            <span>Sporcu: <strong>@(selectedAthlete?.Name ?? "Seçilmedi")</strong></span>
-            <span>Hesap: <strong>@(selectedUser?.Name ?? "Seçilmedi")</strong></span>
-        </div>
-
-        <button class="btn btn-primary mt-3" type="submit" disabled="@(!input.AthleteProfileId.HasValue || !input.RelatedUserId.HasValue)">Ata</button>
-    </EditForm>
-
     <StatusMessage Message="@message" />
+
+    <form method="post" action="/admin/relations/assign" data-enhance="false">
+        <AntiforgeryToken />
+
+        <div class="relation-type-switch relation-type-static" role="radiogroup" aria-label="İlişki türü">
+            <label>
+                <input type="radio" name="RelationType" value="@AthleteRelationType.Coach" checked />
+                <span>Antrenör</span>
+            </label>
+            <label>
+                <input type="radio" name="RelationType" value="@AthleteRelationType.Parent" />
+                <span>Ebeveyn</span>
+            </label>
+        </div>
+
+        <div class="relation-picker-grid mt-3 static-relation-picker">
+            <section class="picker-panel">
+                <h3>Sporcu seç</h3>
+                <div class="picker-list">
+                    @foreach (var athlete in athletes)
+                    {
+                        <label class="picker-row radio-picker-row">
+                            <input type="radio" name="AthleteProfileId" value="@athlete.Id" required />
+                            <span>
+                                <strong>@athlete.Name</strong>
+                                <small>@athlete.BranchName</small>
+                            </span>
+                        </label>
+                    }
+                </div>
+            </section>
+
+            <section class="picker-panel relation-target-panel coach-targets">
+                <h3>Antrenör seç</h3>
+                <div class="picker-list">
+                    @foreach (var coach in coaches)
+                    {
+                        <label class="picker-row radio-picker-row">
+                            <input type="radio" name="RelatedCoachUserId" value="@coach.Id" />
+                            <span>
+                                <strong>@coach.Name</strong>
+                                <small>Antrenör</small>
+                            </span>
+                        </label>
+                    }
+                </div>
+            </section>
+
+            <section class="picker-panel relation-target-panel parent-targets">
+                <h3>Ebeveyn seç</h3>
+                <div class="picker-list">
+                    @foreach (var parent in parents)
+                    {
+                        <label class="picker-row radio-picker-row">
+                            <input type="radio" name="RelatedParentUserId" value="@parent.Id" />
+                            <span>
+                                <strong>@parent.Name</strong>
+                                <small>Ebeveyn</small>
+                            </span>
+                        </label>
+                    }
+                </div>
+            </section>
+        </div>
+
+        <button class="btn btn-primary mt-3" type="submit" disabled="@(athletes.Count == 0 || (coaches.Count == 0 && parents.Count == 0))">Ata</button>
+    </form>
 </section>
 
 <section class="content-card p-4 mt-4">
@@ -95,7 +105,7 @@
     {
         <div class="dashboard-empty">
             <strong>Henüz atama yok.</strong>
-            <p>Antrenörlerin sporcuları görebilmesi için önce buradan ilişki oluşturun.</p>
+            <p>Antrenörlerin ve ebeveynlerin sporcuları görebilmesi için önce buradan ilişki oluşturun.</p>
         </div>
     }
     else
@@ -127,95 +137,36 @@
 </section>
 
 @code {
-    private RelationInput input = new();
     private IReadOnlyList<AthleteOption> athletes = [];
     private IReadOnlyList<UserOption> coaches = [];
     private IReadOnlyList<UserOption> parents = [];
     private IReadOnlyList<RelationRow> relations = [];
-    private AthleteOption? selectedAthlete;
-    private UserOption? selectedUser;
-    private string? athleteSearch;
-    private string? userSearch;
     private string? message;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
-
-    private IEnumerable<AthleteOption> FilterAthletes() =>
-        string.IsNullOrWhiteSpace(athleteSearch)
-            ? athletes
-            : athletes.Where(x => Contains(x.Name, athleteSearch) || Contains(x.BranchName, athleteSearch));
-
-    private IEnumerable<UserOption> FilterUsers()
+    protected override async Task OnInitializedAsync()
     {
-        var source = input.RelationType == AthleteRelationType.Parent ? parents : coaches;
-        return string.IsNullOrWhiteSpace(userSearch)
-            ? source
-            : source.Where(x => Contains(x.Name, userSearch));
+        SetMessage();
+        await LoadAsync();
     }
 
-    private void SetRelationType(AthleteRelationType relationType)
+    private void SetMessage()
     {
-        input.RelationType = relationType;
-        input.RelatedUserId = null;
-        selectedUser = null;
-        userSearch = null;
-    }
-
-    private void SelectAthlete(AthleteOption athlete)
-    {
-        selectedAthlete = athlete;
-        input.AthleteProfileId = athlete.Id;
-    }
-
-    private void SelectUser(UserOption user)
-    {
-        selectedUser = user;
-        input.RelatedUserId = user.Id;
-    }
-
-    private async Task AssignAsync()
-    {
-        try
+        var query = new Uri(Navigation.Uri).Query;
+        if (query.Contains("assigned=1", StringComparison.OrdinalIgnoreCase))
         {
-            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            if (!authState.User.IsInRole(RoleNames.Admin))
-            {
-                message = "Hata: Sporcu ataması yalnızca Admin hesabıyla yapılabilir.";
-                return;
-            }
-
-            var adminUser = await UserManager.GetUserAsync(authState.User);
-            var exists = await Db.AthleteRelations.AnyAsync(x =>
-                x.AthleteProfileId == input.AthleteProfileId!.Value &&
-                x.RelatedUserId == input.RelatedUserId!.Value &&
-                x.RelationType == input.RelationType &&
-                x.IsActive,
-                CancellationToken.None);
-            if (exists)
-            {
-                message = "Hata: Bu sporcu ile seçilen hesap arasında aktif ilişki zaten var.";
-                return;
-            }
-
-            Db.AthleteRelations.Add(new AthleteRelation
-            {
-                AthleteProfileId = input.AthleteProfileId!.Value,
-                RelatedUserId = input.RelatedUserId!.Value,
-                RelationType = input.RelationType,
-                CreatedByUserId = adminUser?.Id
-            });
-            await Db.SaveChangesAsync(CancellationToken.None);
-            input = new();
-            selectedAthlete = null;
-            selectedUser = null;
-            athleteSearch = null;
-            userSearch = null;
             message = "Başarılı: Sporcu ataması yapıldı.";
-            await LoadAsync();
         }
-        catch (Exception ex)
+        else if (query.Contains("duplicate=1", StringComparison.OrdinalIgnoreCase))
         {
-            message = $"Hata: {ex.Message}";
+            message = "Hata: Bu sporcu ile seçilen hesap arasında aktif ilişki zaten var.";
+        }
+        else if (query.Contains("missing=1", StringComparison.OrdinalIgnoreCase))
+        {
+            message = "Hata: Sporcu ve hesap seçimi zorunludur.";
+        }
+        else if (query.Contains("invalid=1", StringComparison.OrdinalIgnoreCase))
+        {
+            message = "Hata: Seçilen hesap türü geçersiz.";
         }
     }
 
@@ -259,20 +210,6 @@
             orderby user.FirstName, user.LastName
             select new UserOption(user.Id, (user.FirstName + " " + user.LastName).Trim()))
             .ToListAsync(CancellationToken.None);
-
-    private static bool Contains(string? value, string query) =>
-        value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
-
-    private sealed class RelationInput
-    {
-        [Required(ErrorMessage = "Sporcu seçimi zorunludur.")]
-        public Guid? AthleteProfileId { get; set; }
-
-        [Required(ErrorMessage = "Hesap seçimi zorunludur.")]
-        public Guid? RelatedUserId { get; set; }
-
-        public AthleteRelationType RelationType { get; set; } = AthleteRelationType.Coach;
-    }
 
     private sealed record AthleteOption(Guid Id, string Name, string BranchName);
     private sealed record UserOption(Guid Id, string Name);

@@ -12,6 +12,7 @@ using SporcuGelisim.Application.Services;
 using SporcuGelisim.Application.Validation;
 using SporcuGelisim.Domain.Common;
 using SporcuGelisim.Domain.Entities;
+using SporcuGelisim.Domain.Enums;
 using SporcuGelisim.Infrastructure;
 using SporcuGelisim.Infrastructure.Data;
 using SporcuGelisim.Infrastructure.Identity;
@@ -131,6 +132,72 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.MapAdditionalIdentityEndpoints();
+app.MapPost("/admin/relations/assign", async (
+        HttpRequest request,
+        ClaimsPrincipal principal,
+        ApplicationDbContext db,
+        UserManager<ApplicationUser> userManager,
+        CancellationToken cancellationToken) =>
+    {
+        var adminIdValue = userManager.GetUserId(principal);
+        if (!Guid.TryParse(adminIdValue, out var adminId) || !principal.IsInRole(RoleNames.Admin))
+        {
+            return Results.LocalRedirect("/Account/AccessDenied");
+        }
+
+        var form = await request.ReadFormAsync(cancellationToken);
+        var athleteProfileId = ParseNullableGuid(form["AthleteProfileId"]);
+        var relationType = ParseRelationType(form["RelationType"]);
+        var relatedUserId = relationType == AthleteRelationType.Parent
+            ? ParseNullableGuid(form["RelatedParentUserId"])
+            : ParseNullableGuid(form["RelatedCoachUserId"]);
+
+        if (!athleteProfileId.HasValue || !relatedUserId.HasValue)
+        {
+            return Results.LocalRedirect("/admin/relations?missing=1");
+        }
+
+        var expectedRole = relationType == AthleteRelationType.Parent ? RoleNames.Parent : RoleNames.Coach;
+        var relatedUserHasRole = await (
+            from userRole in db.UserRoles.AsNoTracking()
+            join role in db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where userRole.UserId == relatedUserId.Value && role.Name == expectedRole
+            select userRole.UserId)
+            .AnyAsync(cancellationToken);
+        if (!relatedUserHasRole)
+        {
+            return Results.LocalRedirect("/admin/relations?invalid=1");
+        }
+
+        var athleteExists = await db.AthleteProfiles.AnyAsync(x => x.Id == athleteProfileId.Value, cancellationToken);
+        if (!athleteExists)
+        {
+            return Results.LocalRedirect("/admin/relations?missing=1");
+        }
+
+        var exists = await db.AthleteRelations.AnyAsync(x =>
+            x.AthleteProfileId == athleteProfileId.Value &&
+            x.RelatedUserId == relatedUserId.Value &&
+            x.RelationType == relationType &&
+            x.IsActive,
+            cancellationToken);
+        if (exists)
+        {
+            return Results.LocalRedirect("/admin/relations?duplicate=1");
+        }
+
+        db.AthleteRelations.Add(new AthleteRelation
+        {
+            AthleteProfileId = athleteProfileId.Value,
+            RelatedUserId = relatedUserId.Value,
+            RelationType = relationType,
+            CreatedByUserId = adminId
+        });
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.LocalRedirect("/admin/relations?assigned=1");
+    })
+    .RequireAuthorization(policy => policy.RequireRole(RoleNames.Admin));
+
 app.MapPost("/athlete/profile/update", async (
         HttpRequest request,
         ClaimsPrincipal principal,
@@ -248,6 +315,9 @@ app.Run();
 static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
 static Guid? ParseNullableGuid(string? value) => Guid.TryParse(value, out var id) ? id : null;
+
+static AthleteRelationType ParseRelationType(string? value) =>
+    Enum.TryParse<AthleteRelationType>(value, out var relationType) ? relationType : AthleteRelationType.Coach;
 
 static DateOnly? ParseNullableDate(string? value) =>
     DateOnly.TryParse(value, out var date) ? date : null;
