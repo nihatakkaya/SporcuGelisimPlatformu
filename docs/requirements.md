@@ -12,6 +12,7 @@ Kritik kurallar:
 - Entity sınıfları doğrudan form modeli olarak kullanılmaz.
 - Secret değerleri repository içinde tutulmaz.
 - Giriş ekranı Türkçe olmalı, kullanıcı adı veya e-posta ile giriş yapılmasını desteklemelidir.
+- Giriş ekranında `Rol bazlı` ve `Güvenli` tanıtım kutuları gösterilmemelidir.
 - Development admin kullanıcısı yalnızca `SeedAdmin:Email` ve `SeedAdmin:Password` user-secrets değerleri üzerinden seed edilir.
 - Giriş sonrası ana sayfa, veri bulunmadığında bile rol bazlı hızlı işlemler ve boş durum açıklaması göstermelidir.
 - Başarılı giriş sonrası kullanıcı, önceki yasaklı `returnUrl` değerine değil rolüne uygun ana sayfaya yönlendirilmelidir.
@@ -27,6 +28,8 @@ Kritik kurallar:
 - Sporcu, yalnızca kendisinden sorumlu antrenöre geri bildirim gönderebilmelidir; antrenör sadece kendisine gelen geri bildirimleri görmelidir.
 - Sporcu, kendisine atanmış kelime havuzunu görebilmeli ve yeni kelime önerisini sorumlu antrenöre istek olarak gönderebilmelidir. Antrenör isteği onaylarsa kelime antrenör havuzuna eklenmeli ve sporcuya atanmalıdır.
 - Üst menüde oturum e-postası yerine normal yazı ağırlığında `Hesabım` bağlantısı gösterilmelidir.
+- `Profilim` ve `Hesabım` ayrı menü öğeleri olarak gösterilmemeli; hesap bilgileri, role göre profil bilgileri ve şifre değiştirme işlemi `Hesabım` ekranında birleşmelidir.
+- Şifre değiştirme formu `Hesabım` ekranında butonla açılmalı; kullanıcı ayrı bir şifre sayfasına yönlendirilmemelidir.
 - Üst menüde `Sporcular` bağlantısı yalnızca Admin ve Antrenör rollerinde bulunmalı; Sporcu ve Ebeveyn rollerinde gizlenmelidir.
 - Ebeveyn üst menüsünde yalnızca `Sporcularım` ekranı gösterilmelidir.
 - Ana sayfadaki sporcu, antrenör, ebeveyn ve oturum sayıları yalnızca Admin rolüne gösterilmelidir.

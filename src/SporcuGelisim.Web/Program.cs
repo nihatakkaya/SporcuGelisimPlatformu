@@ -517,9 +517,11 @@ app.MapPost("/coach/profile/update", async (
             return Results.LocalRedirect("/Account/AccessDenied");
         }
 
+        var returnUrl = "/coach/profile";
         try
         {
             var form = await request.ReadFormAsync(cancellationToken);
+            returnUrl = SafeReturnUrl(form["ReturnUrl"], "/coach/profile");
             var phoneNumber = NormalizePhoneNumber(Clean(form["PhoneNumber"]), "Telefon no");
             var user = await userManager.FindByIdAsync(userId.ToString());
             if (user is null)
@@ -542,19 +544,19 @@ app.MapPost("/coach/profile/update", async (
             if (!result.Succeeded)
             {
                 var message = string.Join(" ", result.Errors.Select(x => x.Description));
-                return Results.LocalRedirect($"/coach/profile?error={Uri.EscapeDataString(message)}");
+                return Results.LocalRedirect($"{returnUrl}?error={Uri.EscapeDataString(message)}");
             }
 
-            return Results.LocalRedirect("/coach/profile?saved=1");
+            return Results.LocalRedirect($"{returnUrl}?saved=1");
         }
         catch (ValidationFailedException ex)
         {
             var message = string.Join(" ", ex.Errors.SelectMany(x => x.Value));
-            return Results.LocalRedirect($"/coach/profile?error={Uri.EscapeDataString(message)}");
+            return Results.LocalRedirect($"{returnUrl}?error={Uri.EscapeDataString(message)}");
         }
         catch
         {
-            return Results.LocalRedirect("/coach/profile?error=1");
+            return Results.LocalRedirect($"{returnUrl}?error=1");
         }
     })
     .RequireAuthorization(policy => policy.RequireRole(RoleNames.Coach));
@@ -573,9 +575,11 @@ app.MapPost("/athlete/profile/update", async (
             return Results.LocalRedirect("/Account/Login");
         }
 
+        var returnUrl = "/athlete/profile";
         try
         {
             var form = await request.ReadFormAsync(cancellationToken);
+            returnUrl = SafeReturnUrl(form["ReturnUrl"], "/athlete/profile");
             var primaryBranchId = ParseNullableGuid(form["PrimaryBranchId"]);
             var birthDate = ParseNullableDate(form["BirthDate"]);
             var nationalIdentityNumber = Clean(form["NationalIdentityNumber"]);
@@ -634,16 +638,16 @@ app.MapPost("/athlete/profile/update", async (
                 }
             }
 
-            return Results.LocalRedirect("/athlete/profile?saved=1");
+            return Results.LocalRedirect($"{returnUrl}?saved=1");
         }
         catch (ValidationFailedException ex)
         {
             var message = string.Join(" ", ex.Errors.SelectMany(x => x.Value));
-            return Results.LocalRedirect($"/athlete/profile?error={Uri.EscapeDataString(message)}");
+            return Results.LocalRedirect($"{returnUrl}?error={Uri.EscapeDataString(message)}");
         }
         catch
         {
-            return Results.LocalRedirect("/athlete/profile?error=1");
+            return Results.LocalRedirect($"{returnUrl}?error=1");
         }
     })
     .RequireAuthorization(policy => policy.RequireRole(RoleNames.Athlete));
@@ -675,6 +679,21 @@ using (var scope = app.Services.CreateScope())
 app.Run();
 
 static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+static string SafeReturnUrl(string? value, string fallback)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return fallback;
+    }
+
+    var trimmed = value.Trim();
+    return trimmed.StartsWith("/", StringComparison.Ordinal) &&
+        !trimmed.StartsWith("//", StringComparison.Ordinal) &&
+        !trimmed.Contains("://", StringComparison.Ordinal)
+        ? trimmed
+        : fallback;
+}
 
 static Guid? ParseNullableGuid(string? value) => Guid.TryParse(value, out var id) ? id : null;
 

@@ -2,55 +2,222 @@
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using SporcuGelisim.Application.DTOs
+@using SporcuGelisim.Application.Services
+@using SporcuGelisim.Domain.Common
+@using SporcuGelisim.Domain.Entities
+@using SporcuGelisim.Infrastructure.Data
 @using SporcuGelisim.Infrastructure.Identity
 
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityRedirectManager RedirectManager
+@inject ApplicationDbContext Db
+@inject IBranchService BranchService
+@inject ILogger<Index> Logger
 
-<PageTitle>Profil</PageTitle>
+<PageTitle>Hesabım</PageTitle>
 
 <div class="page-heading compact">
-    <p class="dashboard-kicker">Profil</p>
+    <p class="dashboard-kicker">Hesabım</p>
     <h2>Hesap Bilgileri</h2>
-    <p>Kullanıcı adınızı görüntüleyin ve hesap telefonunuzu güncelleyin.</p>
+    <p>Hesap, profil ve şifre işlemlerinizi aynı ekrandan yönetin.</p>
 </div>
 
-<StatusMessage />
+<StatusMessage Message="@message" />
 
-<EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post">
-    <DataAnnotationsValidator />
-    <ValidationSummary class="alert alert-danger" role="alert" />
-
-    <div class="account-form-grid">
-        <div>
-            <label for="username" class="form-label">Kullanıcı adı</label>
-            <input type="text" value="@username" id="username" class="form-control" disabled />
+<div class="account-unified-layout">
+    <section class="account-section">
+        <div class="section-title-row">
+            <h3>Hesap bilgileri</h3>
         </div>
-        <div>
-            <label for="Input.PhoneNumber" class="form-label">Telefon numarası</label>
-            <InputText @bind-Value="Input.PhoneNumber" id="Input.PhoneNumber" class="form-control" autocomplete="tel" />
-            <ValidationMessage For="() => Input.PhoneNumber" class="text-danger" />
-        </div>
-    </div>
 
-    <button type="submit" class="btn btn-primary mt-4">Bilgileri Kaydet</button>
-</EditForm>
+        <EditForm Model="AccountInput" FormName="account-info" OnValidSubmit="OnAccountSubmitAsync" method="post">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="alert alert-danger" role="alert" />
+
+            <div class="account-form-grid">
+                <div>
+                    <label for="username" class="form-label">Kullanıcı adı</label>
+                    <input type="text" value="@username" id="username" class="form-control" disabled />
+                </div>
+                <div>
+                    <label for="email" class="form-label">E-posta</label>
+                    <input type="text" value="@email" id="email" class="form-control" disabled />
+                </div>
+                <div>
+                    <label for="AccountInput.PhoneNumber" class="form-label">Telefon numarası</label>
+                    <InputText @bind-Value="AccountInput.PhoneNumber" id="AccountInput.PhoneNumber" class="form-control" autocomplete="tel" />
+                    <ValidationMessage For="() => AccountInput.PhoneNumber" class="text-danger" />
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-4">Hesap Bilgilerini Kaydet</button>
+        </EditForm>
+    </section>
+
+    @if (isAthlete)
+    {
+        <section class="account-section">
+            <div class="section-title-row">
+                <h3>Sporcu profil bilgileri</h3>
+            </div>
+
+            <form method="post" action="/athlete/profile/update" enctype="multipart/form-data" data-enhance="false">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="/Account/Manage" />
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="NationalIdentityNumber" class="form-label">TC kimlik no</label>
+                        <input id="NationalIdentityNumber" name="NationalIdentityNumber" class="form-control" inputmode="numeric" pattern="\d{11}" minlength="11" maxlength="11" required value="@AthleteInput.NationalIdentityNumber" />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="PrimaryBranchId" class="form-label">Spor branşı</label>
+                        <select id="PrimaryBranchId" name="PrimaryBranchId" class="form-select" required>
+                            <option value="">Seçiniz</option>
+                            @foreach (var branch in branches.Where(x => x.IsActive))
+                            {
+                                <option value="@branch.Id" selected="@(AthleteInput.PrimaryBranchId == branch.Id)">@branch.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="PhoneNumber" class="form-label">Telefon no <span class="form-help">(05 ile başlamalı)</span></label>
+                        <input id="PhoneNumber" name="PhoneNumber" class="form-control" inputmode="numeric" placeholder="0555 555 55 55" maxlength="14" pattern="05\d{2} \d{3} \d{2} \d{2}" data-phone-mask required value="@AthleteInput.PhoneNumber" />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="SecondaryPhoneNumber" class="form-label">2. telefon numarası (ebeveyn no) <span class="form-help">(05 ile başlamalı)</span></label>
+                        <input id="SecondaryPhoneNumber" name="SecondaryPhoneNumber" class="form-control" inputmode="numeric" placeholder="0555 555 55 55" maxlength="14" pattern="05\d{2} \d{3} \d{2} \d{2}" data-phone-mask required value="@AthleteInput.SecondaryPhoneNumber" />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="BirthDate" class="form-label">Doğum tarihi</label>
+                        <input type="date" id="BirthDate" name="BirthDate" class="form-control" required value="@AthleteInput.BirthDateValue" />
+                    </div>
+                    <div class="col-12">
+                        <label for="Address" class="form-label">Adres</label>
+                        <textarea id="Address" name="Address" class="form-control" rows="3" maxlength="500" required>@AthleteInput.Address</textarea>
+                    </div>
+                    <div class="col-12">
+                        <label for="Biography" class="form-label">Sporcu notu</label>
+                        <textarea id="Biography" name="Biography" class="form-control" rows="4" maxlength="2000">@AthleteInput.Biography</textarea>
+                    </div>
+                    <div class="col-12">
+                        <label for="ProfilePhoto" class="form-label">Profil fotoğrafı</label>
+                        <input type="file" id="ProfilePhoto" name="ProfilePhoto" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
+                        <div class="form-help mt-2">JPG, PNG veya WEBP yükleyebilirsiniz. En fazla 5 MB.</div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary mt-4">Profil Bilgilerini Kaydet</button>
+            </form>
+        </section>
+    }
+
+    @if (isCoach)
+    {
+        <section class="account-section">
+            <div class="section-title-row">
+                <h3>Antrenör profil fotoğrafı</h3>
+            </div>
+
+            <div class="profile-editor-layout">
+                <div class="profile-preview">
+                    @if (!string.IsNullOrWhiteSpace(profilePhotoPath))
+                    {
+                        <img src="@PhotoUrl(profilePhotoPath)" alt="@fullName" />
+                    }
+                    else
+                    {
+                        <span>@Initials(fullName)</span>
+                    }
+                    <strong>@fullName</strong>
+                    <small>@(AccountInput.PhoneNumber ?? "Telefon girilmemiş")</small>
+                </div>
+
+                <form method="post" action="/coach/profile/update" enctype="multipart/form-data" data-enhance="false">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="ReturnUrl" value="/Account/Manage" />
+                    <input type="hidden" name="PhoneNumber" value="@AccountInput.PhoneNumber" />
+
+                    <label for="CoachProfilePhoto" class="form-label">Profil fotoğrafı</label>
+                    <input type="file" id="CoachProfilePhoto" name="ProfilePhoto" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
+                    <div class="form-help mt-2">Telefon numarası hesap bilgileri bölümünden güncellenir. Sporcular telefon ve profil fotoğrafınızı görebilir.</div>
+
+                    <button type="submit" class="btn btn-primary mt-4">Fotoğrafı Kaydet</button>
+                </form>
+            </div>
+        </section>
+    }
+
+    <section class="account-section">
+        <details class="password-section" open="@showPasswordSection">
+            <summary>
+                <span>Şifre işlemleri</span>
+                <span class="password-summary-button">Şifre Değiştir</span>
+            </summary>
+
+            <EditForm Model="PasswordInput" FormName="password-info" OnValidSubmit="OnPasswordSubmitAsync" method="post">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="alert alert-danger mt-3" role="alert" />
+
+                <div class="account-form-grid mt-3">
+                    @if (hasPassword)
+                    {
+                        <div>
+                            <label for="PasswordInput.OldPassword" class="form-label">Mevcut şifre</label>
+                            <InputText type="password" @bind-Value="PasswordInput.OldPassword" id="PasswordInput.OldPassword" class="form-control" autocomplete="current-password" />
+                            <ValidationMessage For="() => PasswordInput.OldPassword" class="text-danger" />
+                        </div>
+                    }
+                    <div>
+                        <label for="PasswordInput.NewPassword" class="form-label">Yeni şifre</label>
+                        <InputText type="password" @bind-Value="PasswordInput.NewPassword" id="PasswordInput.NewPassword" class="form-control" autocomplete="new-password" />
+                        <ValidationMessage For="() => PasswordInput.NewPassword" class="text-danger" />
+                    </div>
+                    <div>
+                        <label for="PasswordInput.ConfirmPassword" class="form-label">Yeni şifre tekrarı</label>
+                        <InputText type="password" @bind-Value="PasswordInput.ConfirmPassword" id="PasswordInput.ConfirmPassword" class="form-control" autocomplete="new-password" />
+                        <ValidationMessage For="() => PasswordInput.ConfirmPassword" class="text-danger" />
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary mt-4">Yeni Şifreyi Kaydet</button>
+            </EditForm>
+        </details>
+    </section>
+</div>
 
 @code {
     private ApplicationUser? user;
     private string? username;
+    private string? email;
     private string? phoneNumber;
+    private string? message;
+    private string fullName = "Hesap";
+    private string? profilePhotoPath;
+    private bool hasPassword = true;
+    private bool showPasswordSection;
+    private bool isAthlete;
+    private bool isCoach;
+    private IReadOnlyList<BranchDto> branches = [];
+    private AthleteProfileInput AthleteInput { get; } = new();
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 
-    [SupplyParameterFromForm]
-    private InputModel Input { get; set; } = default!;
+    [SupplyParameterFromForm(FormName = "account-info")]
+    private AccountInputModel AccountInput { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "password-info")]
+    private PasswordInputModel PasswordInput { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
-        Input ??= new();
+        AccountInput ??= new();
+        PasswordInput ??= new();
+        SetStatusMessage();
 
         user = await UserManager.GetUserAsync(HttpContext.User);
         if (user is null)
@@ -60,11 +227,61 @@
         }
 
         username = await UserManager.GetUserNameAsync(user);
+        email = await UserManager.GetEmailAsync(user);
         phoneNumber = await UserManager.GetPhoneNumberAsync(user);
-        Input.PhoneNumber ??= phoneNumber;
+        AccountInput.PhoneNumber ??= phoneNumber;
+        hasPassword = await UserManager.HasPasswordAsync(user);
+        isAthlete = HttpContext.User.IsInRole(RoleNames.Athlete);
+        isCoach = HttpContext.User.IsInRole(RoleNames.Coach);
+        fullName = $"{user.FirstName} {user.LastName}".Trim();
+
+        profilePhotoPath = await Db.FileAssets.AsNoTracking()
+            .Where(x => x.Id == user.ProfilePhotoId)
+            .Select(x => x.RelativePath)
+            .FirstOrDefaultAsync(CancellationToken.None);
+
+        if (isAthlete)
+        {
+            branches = await BranchService.GetTreeAsync(CancellationToken.None);
+            await LoadAthleteProfileAsync(user.Id);
+        }
     }
 
-    private async Task OnValidSubmitAsync()
+    private void SetStatusMessage()
+    {
+        var parameters = HttpContext.Request.Query;
+        if (parameters.ContainsKey("saved"))
+        {
+            message = "Başarılı: Bilgileriniz kaydedildi.";
+        }
+        else if (parameters.TryGetValue("error", out var error))
+        {
+            message = error == "1"
+                ? "Hata: Bilgiler kaydedilemedi. Alanları kontrol edip tekrar deneyin."
+                : $"Hata: {error}";
+        }
+    }
+
+    private async Task LoadAthleteProfileAsync(Guid userId)
+    {
+        var profile = await Db.AthleteProfiles.FirstOrDefaultAsync(x => x.UserId == userId, CancellationToken.None);
+        if (profile is null)
+        {
+            profile = new AthleteProfile { UserId = userId };
+            Db.AthleteProfiles.Add(profile);
+            await Db.SaveChangesAsync(CancellationToken.None);
+        }
+
+        AthleteInput.PrimaryBranchId = profile.PrimaryBranchId;
+        AthleteInput.NationalIdentityNumber = profile.NationalIdentityNumber;
+        AthleteInput.PhoneNumber = profile.PhoneNumber;
+        AthleteInput.SecondaryPhoneNumber = profile.SecondaryPhoneNumber;
+        AthleteInput.Address = profile.Address;
+        AthleteInput.Biography = profile.Biography;
+        AthleteInput.BirthDate = profile.BirthDate.HasValue ? profile.BirthDate.Value.ToDateTime(TimeOnly.MinValue) : null;
+    }
+
+    private async Task OnAccountSubmitAsync()
     {
         if (user is null)
         {
@@ -72,9 +289,9 @@
             return;
         }
 
-        if (Input.PhoneNumber != phoneNumber)
+        if (AccountInput.PhoneNumber != phoneNumber)
         {
-            var setPhoneResult = await UserManager.SetPhoneNumberAsync(user, Input.PhoneNumber);
+            var setPhoneResult = await UserManager.SetPhoneNumberAsync(user, AccountInput.PhoneNumber);
             if (!setPhoneResult.Succeeded)
             {
                 RedirectManager.RedirectToCurrentPageWithStatus("Hata: Telefon numarası güncellenemedi.", HttpContext);
@@ -83,13 +300,82 @@
         }
 
         await SignInManager.RefreshSignInAsync(user);
-        RedirectManager.RedirectToCurrentPageWithStatus("Profil bilgileriniz güncellendi.", HttpContext);
+        RedirectManager.RedirectToCurrentPageWithStatus("Hesap bilgileriniz güncellendi.", HttpContext);
     }
 
-    private sealed class InputModel
+    private async Task OnPasswordSubmitAsync()
+    {
+        showPasswordSection = true;
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        IdentityResult passwordResult;
+        if (hasPassword)
+        {
+            passwordResult = await UserManager.ChangePasswordAsync(user, PasswordInput.OldPassword, PasswordInput.NewPassword);
+        }
+        else
+        {
+            passwordResult = await UserManager.AddPasswordAsync(user, PasswordInput.NewPassword);
+        }
+
+        if (!passwordResult.Succeeded)
+        {
+            message = $"Hata: {string.Join(", ", passwordResult.Errors.Select(error => error.Description))}";
+            return;
+        }
+
+        await SignInManager.RefreshSignInAsync(user);
+        Logger.LogInformation("User updated password from unified account page.");
+        RedirectManager.RedirectToCurrentPageWithStatus("Şifreniz güncellendi.", HttpContext);
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Take(2).Select(x => x[0])).ToUpperInvariant();
+    }
+
+    private static string PhotoUrl(string path) =>
+        path.StartsWith("/", StringComparison.Ordinal) ? path : $"/{path.Replace('\\', '/')}";
+
+    private sealed class AccountInputModel
     {
         [Phone(ErrorMessage = "Geçerli bir telefon numarası girin.")]
         [Display(Name = "Telefon numarası")]
         public string? PhoneNumber { get; set; }
+    }
+
+    private sealed class PasswordInputModel
+    {
+        [DataType(DataType.Password)]
+        [Display(Name = "Mevcut şifre")]
+        public string OldPassword { get; set; } = "";
+
+        [Required(ErrorMessage = "Yeni şifre zorunludur.")]
+        [StringLength(100, ErrorMessage = "Yeni şifre en az {2}, en fazla {1} karakter olmalıdır.", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        [Display(Name = "Yeni şifre")]
+        public string NewPassword { get; set; } = "";
+
+        [DataType(DataType.Password)]
+        [Display(Name = "Yeni şifre tekrarı")]
+        [Compare("NewPassword", ErrorMessage = "Yeni şifre ve tekrarı eşleşmiyor.")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+
+    private sealed class AthleteProfileInput
+    {
+        public Guid? PrimaryBranchId { get; set; }
+        public string? NationalIdentityNumber { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? SecondaryPhoneNumber { get; set; }
+        public string? Address { get; set; }
+        public string? Biography { get; set; }
+        public DateTime? BirthDate { get; set; }
+        public string? BirthDateValue => BirthDate?.ToString("yyyy-MM-dd");
     }
 }

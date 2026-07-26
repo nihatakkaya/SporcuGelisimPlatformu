@@ -1131,6 +1131,48 @@ a,
     gap: 16px;
 }
 
+.account-unified-layout {
+    display: grid;
+    gap: 18px;
+}
+
+.account-section {
+    padding: 18px;
+    border: 1px solid #e4ebf2;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.password-section summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.password-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.password-section summary > span:first-child {
+    color: #102844;
+    font-weight: 900;
+}
+
+.password-summary-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 8px 14px;
+    border: 1px solid var(--school-blue);
+    border-radius: 8px;
+    color: var(--school-blue);
+    font-weight: 800;
+}
+
 .relation-type-switch {
     display: inline-flex;
     gap: 6px;
