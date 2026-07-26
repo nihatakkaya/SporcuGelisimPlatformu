@@ -1,9 +1,10 @@
 @page "/Account/Register"
-@attribute [Authorize(Roles = RoleNames.Admin)]
+@attribute [Authorize(Roles = RoleNames.Admin + "," + RoleNames.Coach)]
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
 @using SporcuGelisim.Domain.Entities
+@using SporcuGelisim.Domain.Enums
 @using SporcuGelisim.Infrastructure.Data
 @using SporcuGelisim.Infrastructure.Identity
 
@@ -11,6 +12,7 @@
 @inject RoleManager<IdentityRole<Guid>> RoleManager
 @inject IUserStore<ApplicationUser> UserStore
 @inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ILogger<Register> Logger
 
 <PageTitle>Kayıt Oluşturma</PageTitle>
@@ -19,7 +21,7 @@
     <div class="page-heading">
         <p class="dashboard-kicker">Hesap Yönetimi</p>
         <h1>Kayıt Oluşturma</h1>
-        <p>Admin, kullanıcı e-postası ve geçici şifre ile hesap oluşturur. Sporcu hesabı oluşturulduğunda kişi kendi girişiyle profil bilgilerini tamamlar.</p>
+        <p>Yetkiniz olan hesap türleri için e-posta ve geçici şifre belirleyerek kullanıcı oluşturun.</p>
     </div>
 
     <StatusMessage Message="@message" />
@@ -47,7 +49,7 @@
             <div class="col-md-6">
                 <label for="Input.Role" class="form-label">Hesap türü</label>
                 <InputSelect @bind-Value="Input.Role" id="Input.Role" class="form-select">
-                    @foreach (var role in RoleOptions)
+                    @foreach (var role in AvailableRoleOptions)
                     {
                         <option value="@role.Value">@role.Label</option>
                     }
@@ -75,7 +77,7 @@
 </section>
 
 @code {
-    private static readonly IReadOnlyList<RoleOption> RoleOptions =
+    private static readonly IReadOnlyList<RoleOption> AllRoleOptions =
     [
         new(RoleNames.Athlete, "Sporcu"),
         new(RoleNames.Coach, "Antrenör"),
@@ -83,24 +85,40 @@
         new(RoleNames.Admin, "Admin")
     ];
 
+    private IReadOnlyList<RoleOption> AvailableRoleOptions = [];
+    private Guid? currentUserId;
+    private bool isAdmin;
+    private bool isCoach;
     private string? message;
 
     [SupplyParameterFromForm]
     private InputModel Input { get; set; } = default!;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Input ??= new();
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        currentUserId = user?.Id;
+        isAdmin = authState.User.IsInRole(RoleNames.Admin);
+        isCoach = authState.User.IsInRole(RoleNames.Coach);
+        AvailableRoleOptions = GetAvailableRoleOptions();
+        if (!AvailableRoleOptions.Any(x => x.Value == Input.Role))
+        {
+            Input.Role = AvailableRoleOptions.FirstOrDefault()?.Value ?? RoleNames.Athlete;
+        }
     }
 
     public async Task RegisterUser()
     {
         message = null;
-        if (!RoleOptions.Any(x => x.Value == Input.Role))
+        AvailableRoleOptions = GetAvailableRoleOptions();
+        if (!AvailableRoleOptions.Any(x => x.Value == Input.Role))
         {
-            message = "Hata: Geçerli bir hesap türü seçin.";
+            message = "Hata: Bu hesap türünü oluşturma yetkiniz yok.";
             return;
         }
+
         if (!await RoleManager.RoleExistsAsync(Input.Role))
         {
             var createRole = await RoleManager.CreateAsync(new IdentityRole<Guid>(Input.Role));
@@ -136,13 +154,40 @@
 
         if (Input.Role == RoleNames.Athlete)
         {
-            Db.AthleteProfiles.Add(new AthleteProfile { UserId = user.Id });
+            var profile = new AthleteProfile { UserId = user.Id };
+            Db.AthleteProfiles.Add(profile);
+            if (isCoach && currentUserId.HasValue)
+            {
+                Db.AthleteRelations.Add(new AthleteRelation
+                {
+                    AthleteProfileId = profile.Id,
+                    RelatedUserId = currentUserId.Value,
+                    RelationType = AthleteRelationType.Coach,
+                    CreatedByUserId = currentUserId.Value
+                });
+            }
+
             await Db.SaveChangesAsync();
         }
 
-        Logger.LogInformation("Admin created a {Role} account.", Input.Role);
+        Logger.LogInformation("{CreatorRole} created a {Role} account.", isAdmin ? RoleNames.Admin : RoleNames.Coach, Input.Role);
         message = $"Başarılı: {Input.Email} için {RoleLabel(Input.Role)} hesabı oluşturuldu.";
-        Input = new();
+        Input = new() { Role = AvailableRoleOptions.FirstOrDefault()?.Value ?? RoleNames.Athlete };
+    }
+
+    private IReadOnlyList<RoleOption> GetAvailableRoleOptions()
+    {
+        if (isAdmin)
+        {
+            return AllRoleOptions;
+        }
+
+        if (isCoach)
+        {
+            return AllRoleOptions.Where(x => x.Value == RoleNames.Athlete || x.Value == RoleNames.Parent).ToList();
+        }
+
+        return [];
     }
 
     private ApplicationUser CreateUser()
@@ -167,7 +212,7 @@
         return (IUserEmailStore<ApplicationUser>)UserStore;
     }
 
-    private static string RoleLabel(string role) => RoleOptions.First(x => x.Value == role).Label;
+    private static string RoleLabel(string role) => AllRoleOptions.First(x => x.Value == role).Label;
 
     private sealed record RoleOption(string Value, string Label);
 

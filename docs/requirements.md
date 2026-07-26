@@ -16,7 +16,9 @@ Kritik kurallar:
 - Giriş sonrası ana sayfa, veri bulunmadığında bile rol bazlı hızlı işlemler ve boş durum açıklaması göstermelidir.
 - Başarılı giriş sonrası kullanıcı, önceki yasaklı `returnUrl` değerine değil rolüne uygun ana sayfaya yönlendirilmelidir.
 - Kullanıcıya gösterilen Identity, doğrulama ve iş kuralı hataları Türkçe olmalıdır.
-- Kayıt oluşturma ekranı yalnızca Admin rolüne açık olmalı; Admin, e-posta ve şifre belirleyerek Admin, Antrenör, Ebeveyn veya Sporcu hesabı oluşturabilmelidir.
+- Kayıt oluşturma ekranı Admin ve Antrenör rollerine açık olmalıdır; Admin, e-posta ve şifre belirleyerek Admin, Antrenör, Ebeveyn veya Sporcu hesabı oluşturabilmelidir.
+- Kayıt oluşturma ekranı Antrenör rolüne de açık olmalı; Antrenör yalnızca Sporcu ve Ebeveyn hesabı oluşturabilmeli, Antrenör veya Admin hesabı oluşturamamalıdır.
+- Antrenör tarafından oluşturulan sporcu hesabı, oluşturma anında ilgili antrenörün alt birimine aktif ilişki olarak bağlanmalıdır.
 - Sporcu hesabı oluşturulduğunda sporcu, kendi hesabıyla giriş yaparak TC kimlik no, telefon no, 2. telefon numarası (ebeveyn no), adres, spor branşı, doğum tarihi, sporcu notu ve görsel bilgilerini profil ekranında tamamlamalıdır.
 - Antrenör kelime havuzunda kendi kelimelerini ekleyebilmeli, düzenleyebilmeli, pasife alabilmeli ve erişebildiği sporculara kelime atayabilmelidir.
 - Antrenör, `Sporcularım` ekranında kendisine bağlı sporcuları listeleyebilmeli; sporcu seçildiğinde branş, iletişim, ebeveyn telefonu, adres, doğum tarihi, yaş, profil notu, oturumlar, geri bildirimler ve atanmış kelimeleri görüntüleyebilmelidir.
@@ -29,14 +31,18 @@ Kritik kurallar:
 - Ebeveyn üst menüsünde yalnızca `Sporcularım` ekranı gösterilmelidir.
 - Ana sayfadaki sporcu, antrenör, ebeveyn ve oturum sayıları yalnızca Admin rolüne gösterilmelidir.
 - Ana sayfada `Sistem Durumu` ve kurulum özeti paneli gösterilmemelidir; rol bazlı hızlı işlemler korunmalıdır.
+- Ana sayfadaki hesap kartında `Aktif bölüm` metni yerine kullanıcının profil fotoğrafı veya baş harfleri ile ad soyadı gösterilmelidir.
 - `Sporcular` ve `Sporcularım` listelerinde ad, branş veya telefon ile arama yapılabilmelidir.
 - Sporcu adına basıldığında sporcunun profil, iletişim ve branş bilgileri detay sayfasında görüntülenmelidir; oturum, kelime ve geri bildirim detayları yalnızca yetkili ilişki üzerinden gösterilmelidir.
 - Admin, branşları ekleyebilmenin yanında düzenleyebilmeli ve güvenli şekilde pasife alarak silebilmelidir.
 - Sporcu atama ekranında sporcu ve hesap seçimi aramalı, açılır liste biçiminde olmalı; yazılan harflere göre filtreleme yapılmalıdır.
+- Sporcu atama ekranında Sporcu, Antrenör ve Ebeveyn panellerinin her birinde yazılı arama alanı ve `Ara` butonu bulunmalıdır.
 - Sporcu-antrenör ve sporcu-ebeveyn ilişki atama işlemi Blazor Server bağlantısına bağlı kalmayan klasik form POST akışıyla çalışmalıdır.
 - Sporcu profil güncelleme formu, görsel yüklemede Blazor Server bağlantısına bağımlı kalmamak için yetkili klasik multipart POST akışıyla kaydedilmelidir.
 - Sporcu profilinde TC kimlik, spor branşı, telefon no, 2. telefon numarası (ebeveyn no), doğum tarihi ve adres zorunlu olmalıdır; TC kimlik 11 rakam, telefonlar `05` ile başlayan 11 hane ve `0555 555 55 55` formatında saklanmalıdır.
 - Sporcu geri bildirimi, antrenör ve mesaj seçimini Blazor Server event akışına bağlı kalmadan klasik form POST ile göndermelidir.
+- Antrenör kendi profilinde telefon numarasını ve profil fotoğrafını güncelleyebilmelidir; sporcu kendi sorumlu antrenörünün telefon numarasını ve profil fotoğrafını görebilmelidir.
+- Antrenör ve Ebeveyn, ortak sporcu ilişkisi üzerinden birbirine özel geri bildirim gönderebilmelidir; bu mesajlar sporcu hesabına gösterilmemelidir.
 - Antrenör kelime havuzu ve sporcu takip ekranları, Blazor Server event sırasında kullanıcı bilgisi düşse bile antrenörün kendi rolü ve aktif ilişkileri üzerinden çalışmalıdır.
 - Sporcu kelime havuzu ekranı, sporcuya atanmış kelimeleri ve kelime isteklerini doğrudan oturumdaki sporcu profili üzerinden yüklemeli; antrenör ilişkisi yoksa çökmeden boş durum göstermelidir.
 - Ebeveyn hesabı, kendisine atanmış sporcuları ve bu sporcuların temel gelişim detaylarını ayrı bir `Sporcularım` ekranında görüntüleyebilmelidir.

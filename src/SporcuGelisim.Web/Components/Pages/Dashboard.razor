@@ -1,6 +1,13 @@
 @page "/dashboard"
 @attribute [Authorize]
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using SporcuGelisim.Infrastructure.Data
+@using SporcuGelisim.Infrastructure.Identity
 @inject IDashboardService DashboardService
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
 
 <PageTitle>Ana Sayfa</PageTitle>
 
@@ -33,15 +40,20 @@ else
                 <p>İlişkili sporcuların gelişim notlarını ve geri bildirimlerini takip edin.</p>
             </AuthorizeView>
         </div>
-        <AuthorizeView>
-            <Authorized>
-                <div class="hero-account-card">
-                    <span>Aktif bölüm</span>
-                    <strong>Hesap</strong>
-                    <a href="/Account/Manage">Hesap bilgileri</a>
-                </div>
-            </Authorized>
-        </AuthorizeView>
+        @if (account is not null)
+        {
+            <a class="hero-account-card user-hero-card" href="/Account/Manage">
+                @if (!string.IsNullOrWhiteSpace(account.PhotoPath))
+                {
+                    <img src="@PhotoUrl(account.PhotoPath)" alt="@account.FullName" />
+                }
+                else
+                {
+                    <span class="hero-account-initials">@Initials(account.FullName)</span>
+                }
+                <strong>@account.FullName</strong>
+            </a>
+        }
     </section>
 
     <AuthorizeView Roles="@RoleNames.Admin">
@@ -103,6 +115,14 @@ else
                         <strong>Sporcu ekle</strong>
                         <span>Genel sporcu listesinden alt biriminize sporcu ekleyin.</span>
                     </a>
+                    <a class="dashboard-action" href="/Account/Register">
+                        <strong>Kayıt oluştur</strong>
+                        <span>Sporcu veya ebeveyn hesabı açın.</span>
+                    </a>
+                    <a class="dashboard-action" href="/coach/profile">
+                        <strong>Profilimi güncelle</strong>
+                        <span>Telefon ve profil fotoğrafı bilgilerinizi düzenleyin.</span>
+                    </a>
                     <a class="dashboard-action" href="/coach/words">
                         <strong>Kelime havuzunu yönet</strong>
                         <span>Kelimeleri ekleyin, düzenleyin ve sporculara atayın.</span>
@@ -142,9 +162,42 @@ else
 
 @code {
     private DashboardSummaryDto? summary;
+    private AccountCard? account;
 
     protected override async Task OnInitializedAsync()
     {
         summary = await DashboardService.GetSummaryAsync(CancellationToken.None);
+        account = await LoadAccountAsync();
     }
+
+    private async Task<AccountCard?> LoadAccountAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user is null)
+        {
+            return null;
+        }
+
+        return await (
+            from appUser in Db.Users.AsNoTracking()
+            join photo in Db.FileAssets.AsNoTracking() on appUser.ProfilePhotoId equals photo.Id into photoJoin
+            from photo in photoJoin.DefaultIfEmpty()
+            where appUser.Id == user.Id
+            select new AccountCard(
+                (appUser.FirstName + " " + appUser.LastName).Trim(),
+                photo == null ? null : photo.RelativePath))
+            .FirstOrDefaultAsync(CancellationToken.None);
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Take(2).Select(x => x[0])).ToUpperInvariant();
+    }
+
+    private static string PhotoUrl(string path) =>
+        path.StartsWith("/", StringComparison.Ordinal) ? path : $"/{path.Replace('\\', '/')}";
+
+    private sealed record AccountCard(string FullName, string? PhotoPath);
 }

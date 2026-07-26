@@ -44,10 +44,14 @@
         <div class="relation-picker-grid mt-3 static-relation-picker">
             <section class="picker-panel">
                 <h3>Sporcu seç</h3>
-                <div class="picker-list">
+                <div class="search-inline">
+                    <input type="search" class="form-control" placeholder="Sporcu ara" data-picker-search data-search-target="#athlete-picker-list" />
+                    <button type="button" class="btn btn-outline-secondary" data-picker-search-button>Ara</button>
+                </div>
+                <div id="athlete-picker-list" class="picker-list">
                     @foreach (var athlete in athletes)
                     {
-                        <label class="picker-row radio-picker-row">
+                        <label class="picker-row radio-picker-row" data-search-text="@($"{athlete.Name} {athlete.BranchName}")">
                             <input type="radio" name="AthleteProfileId" value="@athlete.Id" required />
                             <span>
                                 <strong>@athlete.Name</strong>
@@ -60,10 +64,14 @@
 
             <section class="picker-panel relation-target-panel coach-targets">
                 <h3>Antrenör seç</h3>
-                <div class="picker-list">
+                <div class="search-inline">
+                    <input type="search" class="form-control" placeholder="Antrenör ara" data-picker-search data-search-target="#coach-picker-list" />
+                    <button type="button" class="btn btn-outline-secondary" data-picker-search-button>Ara</button>
+                </div>
+                <div id="coach-picker-list" class="picker-list">
                     @foreach (var coach in coaches)
                     {
-                        <label class="picker-row radio-picker-row">
+                        <label class="picker-row radio-picker-row" data-search-text="@coach.Name">
                             <input type="radio" name="RelatedCoachUserId" value="@coach.Id" />
                             <span>
                                 <strong>@coach.Name</strong>
@@ -76,10 +84,14 @@
 
             <section class="picker-panel relation-target-panel parent-targets">
                 <h3>Ebeveyn seç</h3>
-                <div class="picker-list">
+                <div class="search-inline">
+                    <input type="search" class="form-control" placeholder="Ebeveyn ara" data-picker-search data-search-target="#parent-picker-list" />
+                    <button type="button" class="btn btn-outline-secondary" data-picker-search-button>Ara</button>
+                </div>
+                <div id="parent-picker-list" class="picker-list">
                     @foreach (var parent in parents)
                     {
-                        <label class="picker-row radio-picker-row">
+                        <label class="picker-row radio-picker-row" data-search-text="@parent.Name">
                             <input type="radio" name="RelatedParentUserId" value="@parent.Id" />
                             <span>
                                 <strong>@parent.Name</strong>

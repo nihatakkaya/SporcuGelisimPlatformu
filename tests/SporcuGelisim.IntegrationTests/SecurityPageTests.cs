@@ -61,6 +61,37 @@ public sealed class SecurityPageTests
         Assert.True((int)response.StatusCode is 302 or 401);
     }
 
+    [Fact]
+    public async Task Anonymous_user_cannot_send_related_feedback()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["Target"] = $"{Guid.NewGuid()}:{Guid.NewGuid()}",
+            ["Comment"] = "Deneme mesajı"
+        });
+
+        var response = await client.PostAsync("/feedback/send-related", content);
+
+        Assert.True((int)response.StatusCode is 302 or 401);
+    }
+
+    [Fact]
+    public async Task Anonymous_user_cannot_update_coach_profile()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["PhoneNumber"] = "0555 555 55 55"
+        });
+
+        var response = await client.PostAsync("/coach/profile/update", content);
+
+        Assert.True((int)response.StatusCode is 302 or 401);
+    }
+
     [Theory]
     [InlineData("/coach/athletes/add")]
     [InlineData("/coach/athletes/remove")]
@@ -83,6 +114,8 @@ public sealed class SecurityPageTests
     [Theory]
     [InlineData("/coach/words")]
     [InlineData("/coach/athletes")]
+    [InlineData("/coach/profile")]
+    [InlineData("/Account/Register")]
     [InlineData("/parent/athletes")]
     [InlineData("/admin/relations")]
     public async Task Anonymous_user_is_redirected_from_role_pages(string path)

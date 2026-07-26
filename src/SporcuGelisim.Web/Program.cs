@@ -424,6 +424,141 @@ app.MapPost("/feedback/send", async (
     })
     .RequireAuthorization(policy => policy.RequireRole(RoleNames.Athlete));
 
+app.MapPost("/feedback/send-related", async (
+        HttpRequest request,
+        ClaimsPrincipal principal,
+        ApplicationDbContext db,
+        UserManager<ApplicationUser> userManager,
+        CancellationToken cancellationToken) =>
+    {
+        var userIdValue = userManager.GetUserId(principal);
+        if (!Guid.TryParse(userIdValue, out var userId) ||
+            (!principal.IsInRole(RoleNames.Coach) && !principal.IsInRole(RoleNames.Parent)))
+        {
+            return Results.LocalRedirect("/Account/AccessDenied");
+        }
+
+        var form = await request.ReadFormAsync(cancellationToken);
+        var target = ParseFeedbackTarget(form["Target"]);
+        var comment = Clean(form["Comment"]);
+        if (target is null)
+        {
+            return Results.LocalRedirect("/feedback?error=Al%C4%B1c%C4%B1%20se%C3%A7imi%20zorunludur.");
+        }
+
+        if (string.IsNullOrWhiteSpace(comment))
+        {
+            return Results.LocalRedirect("/feedback?error=Mesaj%20zorunludur.");
+        }
+
+        if (comment.Length > 2000)
+        {
+            return Results.LocalRedirect("/feedback?error=Mesaj%20en%20fazla%202000%20karakter%20olabilir.");
+        }
+
+        var currentRelationType = principal.IsInRole(RoleNames.Coach)
+            ? AthleteRelationType.Coach
+            : AthleteRelationType.Parent;
+        var targetRelationType = currentRelationType == AthleteRelationType.Coach
+            ? AthleteRelationType.Parent
+            : AthleteRelationType.Coach;
+        var targetRole = currentRelationType == AthleteRelationType.Coach ? RoleNames.Parent : RoleNames.Coach;
+
+        var hasCurrentRelation = await db.AthleteRelations.AnyAsync(x =>
+            x.AthleteProfileId == target.Value.AthleteProfileId &&
+            x.RelatedUserId == userId &&
+            x.RelationType == currentRelationType &&
+            x.IsActive,
+            cancellationToken);
+        if (!hasCurrentRelation)
+        {
+            return Results.LocalRedirect("/Account/AccessDenied");
+        }
+
+        var hasTargetRelation = await (
+            from relation in db.AthleteRelations.AsNoTracking()
+            join userRole in db.UserRoles.AsNoTracking() on relation.RelatedUserId equals userRole.UserId
+            join role in db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where relation.AthleteProfileId == target.Value.AthleteProfileId &&
+                  relation.RelatedUserId == target.Value.RecipientUserId &&
+                  relation.RelationType == targetRelationType &&
+                  relation.IsActive &&
+                  role.Name == targetRole
+            select relation.Id)
+            .AnyAsync(cancellationToken);
+        if (!hasTargetRelation)
+        {
+            return Results.LocalRedirect("/feedback?error=Se%C3%A7ilen%20al%C4%B1c%C4%B1%20bu%20sporcu%20ile%20e%C5%9Fle%C5%9Fmi%C5%9F%20de%C4%9Fil.");
+        }
+
+        db.Feedbacks.Add(new Feedback
+        {
+            AthleteProfileId = target.Value.AthleteProfileId,
+            AuthorUserId = userId,
+            RecipientUserId = target.Value.RecipientUserId,
+            FeedbackDate = DateTimeOffset.UtcNow,
+            Comment = comment
+        });
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.LocalRedirect("/feedback?sent=1");
+    })
+    .RequireAuthorization(policy => policy.RequireRole(RoleNames.Coach, RoleNames.Parent));
+
+app.MapPost("/coach/profile/update", async (
+        HttpRequest request,
+        ClaimsPrincipal principal,
+        UserManager<ApplicationUser> userManager,
+        IFileStorageService fileStorage,
+        CancellationToken cancellationToken) =>
+    {
+        var userIdValue = userManager.GetUserId(principal);
+        if (!Guid.TryParse(userIdValue, out var userId) || !principal.IsInRole(RoleNames.Coach))
+        {
+            return Results.LocalRedirect("/Account/AccessDenied");
+        }
+
+        try
+        {
+            var form = await request.ReadFormAsync(cancellationToken);
+            var phoneNumber = NormalizePhoneNumber(Clean(form["PhoneNumber"]), "Telefon no");
+            var user = await userManager.FindByIdAsync(userId.ToString());
+            if (user is null)
+            {
+                return Results.LocalRedirect("/Account/Login");
+            }
+
+            user.PhoneNumber = phoneNumber;
+            var photo = form.Files.GetFile("ProfilePhoto");
+            if (photo is not null && photo.Length > 0)
+            {
+                await using var stream = photo.OpenReadStream();
+                var file = await fileStorage.SaveProfilePhotoAsync(
+                    new UploadProfilePhotoRequest(userId, photo.FileName, photo.ContentType, photo.Length, stream),
+                    cancellationToken);
+                user.ProfilePhotoId = file.Id;
+            }
+
+            var result = await userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+            {
+                var message = string.Join(" ", result.Errors.Select(x => x.Description));
+                return Results.LocalRedirect($"/coach/profile?error={Uri.EscapeDataString(message)}");
+            }
+
+            return Results.LocalRedirect("/coach/profile?saved=1");
+        }
+        catch (ValidationFailedException ex)
+        {
+            var message = string.Join(" ", ex.Errors.SelectMany(x => x.Value));
+            return Results.LocalRedirect($"/coach/profile?error={Uri.EscapeDataString(message)}");
+        }
+        catch
+        {
+            return Results.LocalRedirect("/coach/profile?error=1");
+        }
+    })
+    .RequireAuthorization(policy => policy.RequireRole(RoleNames.Coach));
+
 app.MapPost("/athlete/profile/update", async (
         HttpRequest request,
         ClaimsPrincipal principal,
@@ -542,6 +677,21 @@ app.Run();
 static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
 static Guid? ParseNullableGuid(string? value) => Guid.TryParse(value, out var id) ? id : null;
+
+static (Guid AthleteProfileId, Guid RecipientUserId)? ParseFeedbackTarget(string? value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return null;
+    }
+
+    var parts = value.Split(':', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+    return parts.Length == 2 &&
+        Guid.TryParse(parts[0], out var athleteProfileId) &&
+        Guid.TryParse(parts[1], out var recipientUserId)
+        ? (athleteProfileId, recipientUserId)
+        : null;
+}
 
 static AthleteRelationType ParseRelationType(string? value) =>
     Enum.TryParse<AthleteRelationType>(value, out var relationType) ? relationType : AthleteRelationType.Coach;

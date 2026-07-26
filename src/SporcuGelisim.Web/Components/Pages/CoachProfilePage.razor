@@ -1,0 +1,134 @@
+@page "/coach/profile"
+@attribute [Authorize(Roles = RoleNames.Coach)]
+
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.EntityFrameworkCore
+@using SporcuGelisim.Infrastructure.Data
+@using SporcuGelisim.Infrastructure.Identity
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+
+<PageTitle>Profilim</PageTitle>
+
+<section class="content-card p-4">
+    <div class="page-heading">
+        <p class="dashboard-kicker">Antrenör Bilgileri</p>
+        <h1>Profilim</h1>
+        <p>Telefon numaranızı ve profil fotoğrafınızı güncelleyin. Size bağlı sporcular bu bilgileri görebilir.</p>
+    </div>
+
+    <StatusMessage Message="@message" />
+
+    @if (isLoading)
+    {
+        <div class="dashboard-loading">
+            <div class="spinner-border text-primary" role="status"></div>
+            <span>Profil yükleniyor...</span>
+        </div>
+    }
+    else
+    {
+        <div class="profile-editor-layout">
+            <div class="profile-preview">
+                @if (!string.IsNullOrWhiteSpace(profilePhotoPath))
+                {
+                    <img src="@PhotoUrl(profilePhotoPath)" alt="@fullName" />
+                }
+                else
+                {
+                    <span>@Initials(fullName)</span>
+                }
+                <strong>@fullName</strong>
+                <small>@DisplayValue(phoneNumber)</small>
+            </div>
+
+            <form method="post" action="/coach/profile/update" enctype="multipart/form-data" data-enhance="false">
+                <AntiforgeryToken />
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="PhoneNumber" class="form-label">Telefon no <span class="form-help">(05 ile başlamalı)</span></label>
+                        <input id="PhoneNumber" name="PhoneNumber" class="form-control" inputmode="numeric" placeholder="0555 555 55 55" maxlength="14" pattern="05\d{2} \d{3} \d{2} \d{2}" data-phone-mask value="@phoneNumber" />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="ProfilePhoto" class="form-label">Profil fotoğrafı</label>
+                        <input type="file" id="ProfilePhoto" name="ProfilePhoto" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
+                        <div class="form-help mt-2">JPG, PNG veya WEBP yükleyebilirsiniz. En fazla 5 MB.</div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary mt-4">Profili Kaydet</button>
+            </form>
+        </div>
+    }
+</section>
+
+@code {
+    private bool isLoading = true;
+    private string? message;
+    private string fullName = "Antrenör";
+    private string? phoneNumber;
+    private string? profilePhotoPath;
+
+    protected override async Task OnInitializedAsync()
+    {
+        SetStatusMessage();
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user is null)
+        {
+            message = "Hata: Profil bilgisi için oturum açmanız gerekir.";
+            isLoading = false;
+            return;
+        }
+
+        var profile = await (
+            from appUser in Db.Users.AsNoTracking()
+            join photo in Db.FileAssets.AsNoTracking() on appUser.ProfilePhotoId equals photo.Id into photoJoin
+            from photo in photoJoin.DefaultIfEmpty()
+            where appUser.Id == user.Id
+            select new
+            {
+                appUser.FirstName,
+                appUser.LastName,
+                appUser.PhoneNumber,
+                PhotoPath = photo == null ? null : photo.RelativePath
+            })
+            .FirstAsync(CancellationToken.None);
+
+        fullName = $"{profile.FirstName} {profile.LastName}".Trim();
+        phoneNumber = profile.PhoneNumber;
+        profilePhotoPath = profile.PhotoPath;
+        isLoading = false;
+    }
+
+    private void SetStatusMessage()
+    {
+        var parameters = QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
+        if (parameters.ContainsKey("saved"))
+        {
+            message = "Başarılı: Profil bilgileriniz kaydedildi.";
+        }
+        else if (parameters.TryGetValue("error", out var error))
+        {
+            message = error == "1"
+                ? "Hata: Profil kaydedilemedi. Bilgileri kontrol edip tekrar deneyin."
+                : $"Hata: {error}";
+        }
+    }
+
+    private static string DisplayValue(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "Telefon girilmemiş" : value;
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Take(2).Select(x => x[0])).ToUpperInvariant();
+    }
+
+    private static string PhotoUrl(string path) =>
+        path.StartsWith("/", StringComparison.Ordinal) ? path : $"/{path.Replace('\\', '/')}";
+}

@@ -31,10 +31,16 @@
     </AuthorizeView>
     <AuthorizeView Roles="@RoleNames.Coach">
         <li class="nav-item">
+            <NavLink class="nav-link" href="/coach/profile">Profilim</NavLink>
+        </li>
+        <li class="nav-item">
             <NavLink class="nav-link" href="/coach/athletes">Sporcularım</NavLink>
         </li>
         <li class="nav-item">
             <NavLink class="nav-link" href="/coach/words">Kelime Havuzu</NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link" href="/Account/Register">Kayıt Oluşturma</NavLink>
         </li>
     </AuthorizeView>
     <AuthorizeView Roles="@RoleNames.Athlete">

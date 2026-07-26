@@ -88,13 +88,8 @@ public sealed class FeedbackService(ApplicationDbContext db, ICurrentUserService
     public async Task<IReadOnlyList<FeedbackDto>> GetVisibleForAthleteAsync(Guid athleteProfileId, CancellationToken cancellationToken)
     {
         await access.EnsureCanAccessAthleteAsync(athleteProfileId, cancellationToken);
-        var athleteUserId = await db.AthleteProfiles.AsNoTracking()
-            .Where(x => x.Id == athleteProfileId)
-            .Select(x => x.UserId)
-            .FirstOrDefaultAsync(cancellationToken);
-
         var query = db.Feedbacks.AsNoTracking().Where(x => x.AthleteProfileId == athleteProfileId);
-        if (!currentUser.Roles.Contains(RoleNames.Admin) && currentUser.UserId != athleteUserId)
+        if (!currentUser.Roles.Contains(RoleNames.Admin))
         {
             query = query.Where(x => x.AuthorUserId == currentUser.UserId || x.RecipientUserId == currentUser.UserId);
         }
