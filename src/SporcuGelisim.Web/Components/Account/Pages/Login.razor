@@ -87,10 +87,17 @@
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
+    [SupplyParameterFromQuery]
+    private string? Confirmed { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         Input ??= new();
         editContext = new EditContext(Input);
+        if (Confirmed == "1")
+        {
+            errorMessage = "Başarılı: E-posta adresiniz onaylandı. Şimdi giriş yapabilirsiniz.";
+        }
 
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
@@ -138,6 +145,10 @@
         {
             Logger.LogWarning("User account locked out.");
             RedirectManager.RedirectTo("Account/Lockout");
+        }
+        else if (result.IsNotAllowed && user is not null && !await UserManager.IsEmailConfirmedAsync(user))
+        {
+            RedirectManager.RedirectTo("Account/ConfirmEmailCode", new() { ["email"] = user.Email });
         }
         else
         {

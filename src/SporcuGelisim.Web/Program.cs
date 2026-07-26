@@ -88,7 +88,7 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
-        options.SignIn.RequireConfirmedAccount = false;
+        options.SignIn.RequireConfirmedAccount = true;
         options.Lockout.AllowedForNewUsers = true;
         options.Lockout.MaxFailedAccessAttempts = 5;
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(10);
@@ -99,7 +99,9 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddSignInManager()
     .AddDefaultTokenProviders();
 
-builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+builder.Services.AddSingleton<AccountEmailSender>();
+builder.Services.AddSingleton<IEmailSender<ApplicationUser>>(sp => sp.GetRequiredService<AccountEmailSender>());
+builder.Services.AddSingleton<IAccountEmailSender>(sp => sp.GetRequiredService<AccountEmailSender>());
 
 var app = builder.Build();
 

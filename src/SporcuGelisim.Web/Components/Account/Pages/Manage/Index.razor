@@ -15,6 +15,7 @@
 @inject IdentityRedirectManager RedirectManager
 @inject ApplicationDbContext Db
 @inject IBranchService BranchService
+@inject IAccountEmailSender AccountEmailSender
 @inject ILogger<Index> Logger
 
 <PageTitle>Hesabım</PageTitle>
@@ -39,11 +40,11 @@
 
             <div class="account-form-grid">
                 <div>
-                    <label for="username" class="form-label">Kullanıcı adı</label>
-                    <input type="text" value="@username" id="username" class="form-control" disabled />
+                    <label for="fullName" class="form-label">Ad soyad</label>
+                    <input type="text" value="@fullName" id="fullName" class="form-control" disabled />
                 </div>
                 <div>
-                    <label for="email" class="form-label">E-posta</label>
+                    <label for="email" class="form-label">Mevcut e-posta</label>
                     <input type="text" value="@email" id="email" class="form-control" disabled />
                 </div>
                 <div>
@@ -55,6 +56,36 @@
 
             <button type="submit" class="btn btn-primary mt-4">Hesap Bilgilerini Kaydet</button>
         </EditForm>
+
+        <div class="email-change-panel mt-4">
+            <div class="section-title-row">
+                <h3>E-posta değiştir</h3>
+            </div>
+            <EditForm Model="EmailChangeInput" FormName="email-change-request" OnValidSubmit="OnEmailChangeRequestAsync" method="post">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="alert alert-danger" role="alert" />
+                <div class="account-form-grid">
+                    <div>
+                        <label for="EmailChangeInput.NewEmail" class="form-label">Yeni e-posta</label>
+                        <InputText @bind-Value="EmailChangeInput.NewEmail" id="EmailChangeInput.NewEmail" class="form-control" autocomplete="email" />
+                        <ValidationMessage For="() => EmailChangeInput.NewEmail" class="text-danger" />
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-outline-secondary mt-3">Onay Kodu Gönder</button>
+            </EditForm>
+
+            <EditForm Model="EmailConfirmInput" FormName="email-change-confirm" OnValidSubmit="OnEmailChangeConfirmAsync" method="post" class="mt-3">
+                <DataAnnotationsValidator />
+                <div class="account-form-grid">
+                    <div>
+                        <label for="EmailConfirmInput.Code" class="form-label">Yeni e-postaya gelen kod</label>
+                        <InputText @bind-Value="EmailConfirmInput.Code" id="EmailConfirmInput.Code" class="form-control" inputmode="numeric" maxlength="6" autocomplete="one-time-code" />
+                        <ValidationMessage For="() => EmailConfirmInput.Code" class="text-danger" />
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3">E-postayı Değiştir</button>
+            </EditForm>
+        </div>
     </section>
 
     @if (isAthlete)
@@ -191,7 +222,6 @@
 
 @code {
     private ApplicationUser? user;
-    private string? username;
     private string? email;
     private string? phoneNumber;
     private string? message;
@@ -213,10 +243,18 @@
     [SupplyParameterFromForm(FormName = "password-info")]
     private PasswordInputModel PasswordInput { get; set; } = default!;
 
+    [SupplyParameterFromForm(FormName = "email-change-request")]
+    private EmailChangeInputModel EmailChangeInput { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "email-change-confirm")]
+    private EmailConfirmInputModel EmailConfirmInput { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
         AccountInput ??= new();
         PasswordInput ??= new();
+        EmailChangeInput ??= new();
+        EmailConfirmInput ??= new();
         SetStatusMessage();
 
         user = await UserManager.GetUserAsync(HttpContext.User);
@@ -226,7 +264,6 @@
             return;
         }
 
-        username = await UserManager.GetUserNameAsync(user);
         email = await UserManager.GetEmailAsync(user);
         phoneNumber = await UserManager.GetPhoneNumberAsync(user);
         AccountInput.PhoneNumber ??= phoneNumber;
@@ -303,6 +340,95 @@
         RedirectManager.RedirectToCurrentPageWithStatus("Hesap bilgileriniz güncellendi.", HttpContext);
     }
 
+    private async Task OnEmailChangeRequestAsync()
+    {
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        var newEmail = EmailChangeInput.NewEmail.Trim();
+        if (string.Equals(newEmail, email, StringComparison.OrdinalIgnoreCase))
+        {
+            message = "Hata: Yeni e-posta mevcut e-posta ile aynı olamaz.";
+            return;
+        }
+
+        var existingUser = await UserManager.FindByEmailAsync(newEmail);
+        if (existingUser is not null && existingUser.Id != user.Id)
+        {
+            message = "Hata: Bu e-posta başka bir hesapta kullanılıyor.";
+            return;
+        }
+
+        var code = EmailConfirmationCodeStore.GenerateCode();
+        await UserManager.SetAuthenticationTokenAsync(
+            user,
+            EmailConfirmationCodeStore.EmailChangeLoginProvider,
+            EmailConfirmationCodeStore.TokenName,
+            EmailConfirmationCodeStore.CreateEmailChangeTokenValue(user.Id, newEmail, code, DateTimeOffset.UtcNow));
+        try
+        {
+            await AccountEmailSender.SendEmailChangeCodeAsync(user, newEmail, code);
+        }
+        catch (AccountEmailSendException exception)
+        {
+            message = $"Hata: {exception.Message}";
+            return;
+        }
+
+        message = "Başarılı: Yeni e-posta adresine onay kodu gönderildi.";
+    }
+
+    private async Task OnEmailChangeConfirmAsync()
+    {
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        var tokenValue = await UserManager.GetAuthenticationTokenAsync(
+            user,
+            EmailConfirmationCodeStore.EmailChangeLoginProvider,
+            EmailConfirmationCodeStore.TokenName);
+        if (!EmailConfirmationCodeStore.VerifyEmailChange(user.Id, EmailConfirmInput.Code, tokenValue, DateTimeOffset.UtcNow, out var newEmail))
+        {
+            message = "Hata: E-posta onay kodu geçersiz veya süresi dolmuş.";
+            return;
+        }
+
+        var setEmailResult = await UserManager.SetEmailAsync(user, newEmail);
+        if (!setEmailResult.Succeeded)
+        {
+            message = $"Hata: {string.Join(", ", setEmailResult.Errors.Select(error => error.Description))}";
+            return;
+        }
+
+        var setUserNameResult = await UserManager.SetUserNameAsync(user, newEmail);
+        if (!setUserNameResult.Succeeded)
+        {
+            message = $"Hata: {string.Join(", ", setUserNameResult.Errors.Select(error => error.Description))}";
+            return;
+        }
+
+        user.EmailConfirmed = true;
+        var updateResult = await UserManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            message = $"Hata: {string.Join(", ", updateResult.Errors.Select(error => error.Description))}";
+            return;
+        }
+
+        await UserManager.RemoveAuthenticationTokenAsync(
+            user,
+            EmailConfirmationCodeStore.EmailChangeLoginProvider,
+            EmailConfirmationCodeStore.TokenName);
+        await SignInManager.RefreshSignInAsync(user);
+        RedirectManager.RedirectToCurrentPageWithStatus("E-posta adresiniz güncellendi.", HttpContext);
+    }
+
     private async Task OnPasswordSubmitAsync()
     {
         showPasswordSection = true;
@@ -347,6 +473,20 @@
         [Phone(ErrorMessage = "Geçerli bir telefon numarası girin.")]
         [Display(Name = "Telefon numarası")]
         public string? PhoneNumber { get; set; }
+    }
+
+    private sealed class EmailChangeInputModel
+    {
+        [Required(ErrorMessage = "Yeni e-posta zorunludur.")]
+        [EmailAddress(ErrorMessage = "Geçerli bir e-posta adresi girin.")]
+        public string NewEmail { get; set; } = "";
+    }
+
+    private sealed class EmailConfirmInputModel
+    {
+        [Required(ErrorMessage = "Onay kodu zorunludur.")]
+        [RegularExpression(@"^\d{6}$", ErrorMessage = "Onay kodu 6 rakam olmalıdır.")]
+        public string Code { get; set; } = "";
     }
 
     private sealed class PasswordInputModel

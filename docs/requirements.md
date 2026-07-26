@@ -13,6 +13,8 @@ Kritik kurallar:
 - Secret değerleri repository içinde tutulmaz.
 - Giriş ekranı Türkçe olmalı, kullanıcı adı veya e-posta ile giriş yapılmasını desteklemelidir.
 - Giriş ekranında `Rol bazlı` ve `Güvenli` tanıtım kutuları gösterilmemelidir.
+- Giriş ekranındaki okul logosu görünür boyutta olmalı ve yüklenen resmi kullanmalıdır.
+- Sayfa açılışında başlıklara odak verildiğinde kullanıcıya siyah odak çerçevesi gösterilmemelidir.
 - Development admin kullanıcısı yalnızca `SeedAdmin:Email` ve `SeedAdmin:Password` user-secrets değerleri üzerinden seed edilir.
 - Giriş sonrası ana sayfa, veri bulunmadığında bile rol bazlı hızlı işlemler ve boş durum açıklaması göstermelidir.
 - Başarılı giriş sonrası kullanıcı, önceki yasaklı `returnUrl` değerine değil rolüne uygun ana sayfaya yönlendirilmelidir.
@@ -20,6 +22,9 @@ Kritik kurallar:
 - Kayıt oluşturma ekranı Admin ve Antrenör rollerine açık olmalıdır; Admin, e-posta ve şifre belirleyerek Admin, Antrenör, Ebeveyn veya Sporcu hesabı oluşturabilmelidir.
 - Kayıt oluşturma ekranı Antrenör rolüne de açık olmalı; Antrenör yalnızca Sporcu ve Ebeveyn hesabı oluşturabilmeli, Antrenör veya Admin hesabı oluşturamamalıdır.
 - Antrenör tarafından oluşturulan sporcu hesabı, oluşturma anında ilgili antrenörün alt birimine aktif ilişki olarak bağlanmalıdır.
+- Yeni oluşturulan hesapların e-posta adresi 6 haneli onay kodu ile doğrulanmalı; e-posta onaylanmadan kullanıcı giriş yapamamalıdır.
+- SMTP ayarları secret içermeden yapılandırılmalı; şifre gibi gizli değerler repository içinde tutulmamalıdır.
+- SMTP ayarı eksik veya hatalıysa kullanıcıya e-posta gönderildi mesajı verilmemeli; Türkçe hata mesajı gösterilmelidir.
 - Sporcu hesabı oluşturulduğunda sporcu, kendi hesabıyla giriş yaparak TC kimlik no, telefon no, 2. telefon numarası (ebeveyn no), adres, spor branşı, doğum tarihi, sporcu notu ve görsel bilgilerini profil ekranında tamamlamalıdır.
 - Antrenör kelime havuzunda kendi kelimelerini ekleyebilmeli, düzenleyebilmeli, pasife alabilmeli ve erişebildiği sporculara kelime atayabilmelidir.
 - Antrenör, `Sporcularım` ekranında kendisine bağlı sporcuları listeleyebilmeli; sporcu seçildiğinde branş, iletişim, ebeveyn telefonu, adres, doğum tarihi, yaş, profil notu, oturumlar, geri bildirimler ve atanmış kelimeleri görüntüleyebilmelidir.
@@ -52,3 +57,6 @@ Kritik kurallar:
 - Antrenör, genel `Sporcular` ekranından seçtiği sporcuyu kendi alt birimine klasik form POST akışıyla ekleyebilmelidir.
 - Antrenör, `Sporcularım` ekranında kendi altındaki sporcuyu alt biriminden çıkarabilmeli ve bu işlem eski geri bildirimleri veya kelime atamalarını silmemelidir.
 - Antrenör, kendi altındaki sporcuyu aktif bir ebeveyn hesabı ile eşleştirebilmelidir.
+- `Hesabım` ekranında kullanıcı adı ve e-posta aynı değer olarak yinelenmemeli; hesap bilgileri bölümünde ad soyad ve mevcut e-posta ayrı gösterilmelidir.
+- Kullanıcı `Hesabım` ekranından yeni e-posta adresine 6 haneli onay kodu göndererek e-posta adresini değiştirebilmelidir.
+- E-posta onay ekranında yanlış girilmiş e-posta adresine erişemeyen kullanıcı, mevcut e-posta ve şifresini doğrulayıp yeni e-posta adresine onay kodu gönderebilmelidir.

@@ -13,6 +13,7 @@
 @inject IUserStore<ApplicationUser> UserStore
 @inject ApplicationDbContext Db
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IAccountEmailSender AccountEmailSender
 @inject ILogger<Register> Logger
 
 <PageTitle>Kayıt Oluşturma</PageTitle>
@@ -21,7 +22,7 @@
     <div class="page-heading">
         <p class="dashboard-kicker">Hesap Yönetimi</p>
         <h1>Kayıt Oluşturma</h1>
-        <p>Yetkiniz olan hesap türleri için e-posta ve geçici şifre belirleyerek kullanıcı oluşturun.</p>
+        <p>Hesap oluşturulduktan sonra e-posta adresine 6 haneli onay kodu gönderilir. Kullanıcı bu kodu girmeden giriş yapamaz.</p>
     </div>
 
     <StatusMessage Message="@message" />
@@ -132,7 +133,7 @@
         var user = CreateUser();
         user.FirstName = Input.FirstName.Trim();
         user.LastName = Input.LastName.Trim();
-        user.EmailConfirmed = true;
+        user.EmailConfirmed = false;
 
         await UserStore.SetUserNameAsync(user, Input.Email.Trim(), CancellationToken.None);
         var emailStore = GetEmailStore();
@@ -170,8 +171,24 @@
             await Db.SaveChangesAsync();
         }
 
-        Logger.LogInformation("{CreatorRole} created a {Role} account.", isAdmin ? RoleNames.Admin : RoleNames.Coach, Input.Role);
-        message = $"Başarılı: {Input.Email} için {RoleLabel(Input.Role)} hesabı oluşturuldu.";
+        var confirmationCode = EmailConfirmationCodeStore.GenerateCode();
+        await UserManager.SetAuthenticationTokenAsync(
+            user,
+            EmailConfirmationCodeStore.LoginProvider,
+            EmailConfirmationCodeStore.TokenName,
+            EmailConfirmationCodeStore.CreateTokenValue(user.Id, confirmationCode, DateTimeOffset.UtcNow));
+        try
+        {
+            await AccountEmailSender.SendEmailConfirmationCodeAsync(user, Input.Email.Trim(), confirmationCode);
+        }
+        catch (AccountEmailSendException exception)
+        {
+            message = $"Hata: Hesap oluşturuldu ancak e-posta onay kodu gönderilemedi. {exception.Message}";
+            return;
+        }
+
+        Logger.LogInformation("{CreatorRole} created a {Role} account and sent confirmation code.", isAdmin ? RoleNames.Admin : RoleNames.Coach, Input.Role);
+        message = $"Başarılı: {Input.Email} için {RoleLabel(Input.Role)} hesabı oluşturuldu. E-posta onay kodu gönderildi.";
         Input = new() { Role = AvailableRoleOptions.FirstOrDefault()?.Value ?? RoleNames.Athlete };
     }
 
