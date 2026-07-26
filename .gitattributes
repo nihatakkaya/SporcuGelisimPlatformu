@@ -61,3 +61,12 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+###############################################################################
+# GitHub Linguist language stats
+#
+# Blazor/Razor pages are part of the C# application surface. This only affects
+# GitHub's repository language badge/statistics; it does not change build output.
+###############################################################################
+*.razor linguist-language=C#
+*.cshtml linguist-language=C#
