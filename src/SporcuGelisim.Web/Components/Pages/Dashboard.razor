@@ -2,13 +2,13 @@
 @attribute [Authorize]
 @inject IDashboardService DashboardService
 
-<PageTitle>Panel</PageTitle>
+<PageTitle>Ana Sayfa</PageTitle>
 
 @if (summary is null)
 {
     <section class="dashboard-loading" aria-live="polite">
         <div class="spinner-border text-primary" role="status"></div>
-        <span>Panel yükleniyor...</span>
+        <span>Ana sayfa yükleniyor...</span>
     </section>
 }
 else
@@ -21,15 +21,15 @@ else
                 <p>Hesap oluşturma, branş düzenleme, raporlar ve genel sistem takibi için ana ekran.</p>
             </AuthorizeView>
             <AuthorizeView Roles="@RoleNames.Coach">
-                <h1>Antrenör Paneli</h1>
+                <h1>Antrenör Ana Sayfası</h1>
                 <p>Size bağlı sporcuları inceleyin, kelime havuzunuzu yönetin ve gelişim notlarını takip edin.</p>
             </AuthorizeView>
             <AuthorizeView Roles="@RoleNames.Athlete">
-                <h1>Sporcu Paneli</h1>
+                <h1>Sporcu Ana Sayfası</h1>
                 <p>Profil bilgilerinizi tamamlayın, oturumlarınızı ve geri bildirimlerinizi takip edin.</p>
             </AuthorizeView>
             <AuthorizeView Roles="@RoleNames.Parent">
-                <h1>Ebeveyn Paneli</h1>
+                <h1>Ebeveyn Ana Sayfası</h1>
                 <p>İlişkili sporcuların gelişim notlarını ve geri bildirimlerini takip edin.</p>
             </AuthorizeView>
         </div>

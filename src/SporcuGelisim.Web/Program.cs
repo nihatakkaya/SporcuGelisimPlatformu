@@ -198,6 +198,66 @@ app.MapPost("/admin/relations/assign", async (
     })
     .RequireAuthorization(policy => policy.RequireRole(RoleNames.Admin));
 
+app.MapPost("/feedback/send", async (
+        HttpRequest request,
+        ClaimsPrincipal principal,
+        ApplicationDbContext db,
+        UserManager<ApplicationUser> userManager,
+        IFeedbackService feedbackService,
+        CancellationToken cancellationToken) =>
+    {
+        var userIdValue = userManager.GetUserId(principal);
+        if (!Guid.TryParse(userIdValue, out var userId) || !principal.IsInRole(RoleNames.Athlete))
+        {
+            return Results.LocalRedirect("/Account/AccessDenied");
+        }
+
+        var form = await request.ReadFormAsync(cancellationToken);
+        var coachUserId = ParseNullableGuid(form["CoachUserId"]);
+        var comment = Clean(form["Comment"]);
+        if (!coachUserId.HasValue)
+        {
+            return Results.LocalRedirect("/feedback?error=Antren%C3%B6r%20se%C3%A7imi%20zorunludur.");
+        }
+
+        if (string.IsNullOrWhiteSpace(comment))
+        {
+            return Results.LocalRedirect("/feedback?error=Mesaj%20zorunludur.");
+        }
+
+        if (comment.Length > 2000)
+        {
+            return Results.LocalRedirect("/feedback?error=Mesaj%20en%20fazla%202000%20karakter%20olabilir.");
+        }
+
+        var athleteProfileId = await db.AthleteProfiles.AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (athleteProfileId == Guid.Empty)
+        {
+            return Results.LocalRedirect("/feedback?error=Sporcu%20profili%20bulunamad%C4%B1.");
+        }
+
+        try
+        {
+            await feedbackService.CreateAsync(
+                new CreateFeedbackRequest(athleteProfileId, null, coachUserId, DateTimeOffset.UtcNow, comment),
+                cancellationToken);
+            return Results.LocalRedirect("/feedback?sent=1");
+        }
+        catch (ValidationFailedException ex)
+        {
+            var message = string.Join(" ", ex.Errors.SelectMany(x => x.Value));
+            return Results.LocalRedirect($"/feedback?error={Uri.EscapeDataString(message)}");
+        }
+        catch (ForbiddenException ex)
+        {
+            return Results.LocalRedirect($"/feedback?error={Uri.EscapeDataString(ex.Message)}");
+        }
+    })
+    .RequireAuthorization(policy => policy.RequireRole(RoleNames.Athlete));
+
 app.MapPost("/athlete/profile/update", async (
         HttpRequest request,
         ClaimsPrincipal principal,
@@ -220,11 +280,12 @@ app.MapPost("/athlete/profile/update", async (
             var nationalIdentityNumber = Clean(form["NationalIdentityNumber"]);
             var phoneNumber = Clean(form["PhoneNumber"]);
             var secondaryPhoneNumber = Clean(form["SecondaryPhoneNumber"]);
-            var parentPhoneNumber = Clean(form["ParentPhoneNumber"]);
             var address = Clean(form["Address"]);
             var biography = Clean(form["Biography"]);
 
-            ValidateAthleteProfile(nationalIdentityNumber, phoneNumber, secondaryPhoneNumber, parentPhoneNumber, address, biography);
+            phoneNumber = NormalizePhoneNumber(phoneNumber, "Telefon no");
+            secondaryPhoneNumber = NormalizePhoneNumber(secondaryPhoneNumber, "2. telefon numarası (ebeveyn no)");
+            ValidateAthleteProfile(nationalIdentityNumber, phoneNumber, secondaryPhoneNumber, primaryBranchId, birthDate, address, biography);
             if (primaryBranchId.HasValue)
             {
                 var branchActive = await db.SportBranches.AnyAsync(x => x.Id == primaryBranchId.Value && x.IsActive, cancellationToken);
@@ -245,7 +306,7 @@ app.MapPost("/athlete/profile/update", async (
             profile.NationalIdentityNumber = nationalIdentityNumber;
             profile.PhoneNumber = phoneNumber;
             profile.SecondaryPhoneNumber = secondaryPhoneNumber;
-            profile.ParentPhoneNumber = parentPhoneNumber;
+            profile.ParentPhoneNumber = null;
             profile.Address = address;
             profile.Biography = biography;
             profile.BirthDate = birthDate;
@@ -326,10 +387,13 @@ static void ValidateAthleteProfile(
     string? nationalIdentityNumber,
     string? phoneNumber,
     string? secondaryPhoneNumber,
-    string? parentPhoneNumber,
+    Guid? primaryBranchId,
+    DateOnly? birthDate,
     string? address,
     string? biography)
 {
+    ValidateAthleteProfileRequired(nationalIdentityNumber, phoneNumber, secondaryPhoneNumber, primaryBranchId, birthDate, address, biography);
+
     var errors = new Dictionary<string, string[]>();
     if (!string.IsNullOrWhiteSpace(nationalIdentityNumber) && (nationalIdentityNumber.Length != 11 || nationalIdentityNumber.Any(x => !char.IsDigit(x))))
     {
@@ -338,7 +402,6 @@ static void ValidateAthleteProfile(
 
     AddLengthError(errors, nameof(phoneNumber), phoneNumber, 30, "Telefon no en fazla 30 karakter olabilir.");
     AddLengthError(errors, nameof(secondaryPhoneNumber), secondaryPhoneNumber, 30, "2. telefon numarası en fazla 30 karakter olabilir.");
-    AddLengthError(errors, nameof(parentPhoneNumber), parentPhoneNumber, 30, "Ebeveyn no en fazla 30 karakter olabilir.");
     AddLengthError(errors, nameof(address), address, 500, "Adres en fazla 500 karakter olabilir.");
     AddLengthError(errors, nameof(biography), biography, 2000, "Sporcu notu en fazla 2000 karakter olabilir.");
 
@@ -346,6 +409,80 @@ static void ValidateAthleteProfile(
     {
         throw new ValidationFailedException(errors);
     }
+}
+
+static void ValidateAthleteProfileRequired(
+    string? nationalIdentityNumber,
+    string? phoneNumber,
+    string? secondaryPhoneNumber,
+    Guid? primaryBranchId,
+    DateOnly? birthDate,
+    string? address,
+    string? biography)
+{
+    var errors = new Dictionary<string, string[]>();
+    if (string.IsNullOrWhiteSpace(nationalIdentityNumber))
+    {
+        errors["NationalIdentityNumber"] = ["TC kimlik no zorunludur."];
+    }
+    else if (nationalIdentityNumber.Length != 11 || nationalIdentityNumber.Any(x => !char.IsDigit(x)))
+    {
+        errors["NationalIdentityNumber"] = ["TC kimlik no 11 rakam olmalıdır."];
+    }
+
+    if (!primaryBranchId.HasValue)
+    {
+        errors["PrimaryBranchId"] = ["Spor branşı zorunludur."];
+    }
+
+    if (!birthDate.HasValue)
+    {
+        errors["BirthDate"] = ["Doğum tarihi zorunludur."];
+    }
+
+    if (string.IsNullOrWhiteSpace(phoneNumber))
+    {
+        errors["PhoneNumber"] = ["Telefon no zorunludur."];
+    }
+
+    if (string.IsNullOrWhiteSpace(secondaryPhoneNumber))
+    {
+        errors["SecondaryPhoneNumber"] = ["2. telefon numarası (ebeveyn no) zorunludur."];
+    }
+
+    if (string.IsNullOrWhiteSpace(address))
+    {
+        errors["Address"] = ["Adres zorunludur."];
+    }
+
+    AddLengthError(errors, nameof(phoneNumber), phoneNumber, 30, "Telefon no en fazla 30 karakter olabilir.");
+    AddLengthError(errors, nameof(secondaryPhoneNumber), secondaryPhoneNumber, 30, "2. telefon numarası en fazla 30 karakter olabilir.");
+    AddLengthError(errors, nameof(address), address, 500, "Adres en fazla 500 karakter olabilir.");
+    AddLengthError(errors, nameof(biography), biography, 2000, "Sporcu notu en fazla 2000 karakter olabilir.");
+
+    if (errors.Count > 0)
+    {
+        throw new ValidationFailedException(errors);
+    }
+}
+
+static string? NormalizePhoneNumber(string? value, string label)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return null;
+    }
+
+    var digits = new string(value.Where(char.IsDigit).ToArray());
+    if (digits.Length != 11 || !digits.StartsWith("05", StringComparison.Ordinal))
+    {
+        throw new ValidationFailedException(new Dictionary<string, string[]>
+        {
+            [label] = [$"{label} 05 ile başlamalı ve 11 hane olmalıdır."]
+        });
+    }
+
+    return $"{digits[..4]} {digits.Substring(4, 3)} {digits.Substring(7, 2)} {digits.Substring(9, 2)}";
 }
 
 static void AddLengthError(Dictionary<string, string[]> errors, string key, string? value, int maxLength, string message)

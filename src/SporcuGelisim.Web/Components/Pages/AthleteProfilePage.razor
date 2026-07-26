@@ -39,11 +39,11 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label for="NationalIdentityNumber" class="form-label">TC kimlik no</label>
-                    <input id="NationalIdentityNumber" name="NationalIdentityNumber" class="form-control" maxlength="11" value="@Input.NationalIdentityNumber" />
+                    <input id="NationalIdentityNumber" name="NationalIdentityNumber" class="form-control" inputmode="numeric" pattern="\d{11}" minlength="11" maxlength="11" required value="@Input.NationalIdentityNumber" />
                 </div>
                 <div class="col-md-6">
                     <label for="PrimaryBranchId" class="form-label">Spor branşı</label>
-                    <select id="PrimaryBranchId" name="PrimaryBranchId" class="form-select">
+                    <select id="PrimaryBranchId" name="PrimaryBranchId" class="form-select" required>
                         <option value="">Seçiniz</option>
                         @foreach (var branch in branches.Where(x => x.IsActive))
                         {
@@ -52,28 +52,24 @@
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label for="PhoneNumber" class="form-label">Telefon no</label>
-                    <input id="PhoneNumber" name="PhoneNumber" class="form-control" value="@Input.PhoneNumber" />
+                    <label for="PhoneNumber" class="form-label">Telefon no <span class="form-help">(05 ile başlamalı)</span></label>
+                    <input id="PhoneNumber" name="PhoneNumber" class="form-control" inputmode="numeric" placeholder="0555 555 55 55" maxlength="14" pattern="05\d{2} \d{3} \d{2} \d{2}" data-phone-mask required value="@Input.PhoneNumber" />
                 </div>
                 <div class="col-md-6">
-                    <label for="SecondaryPhoneNumber" class="form-label">2. telefon numarası</label>
-                    <input id="SecondaryPhoneNumber" name="SecondaryPhoneNumber" class="form-control" value="@Input.SecondaryPhoneNumber" />
-                </div>
-                <div class="col-md-6">
-                    <label for="ParentPhoneNumber" class="form-label">Ebeveyn no</label>
-                    <input id="ParentPhoneNumber" name="ParentPhoneNumber" class="form-control" value="@Input.ParentPhoneNumber" />
+                    <label for="SecondaryPhoneNumber" class="form-label">2. telefon numarası (ebeveyn no) <span class="form-help">(05 ile başlamalı)</span></label>
+                    <input id="SecondaryPhoneNumber" name="SecondaryPhoneNumber" class="form-control" inputmode="numeric" placeholder="0555 555 55 55" maxlength="14" pattern="05\d{2} \d{3} \d{2} \d{2}" data-phone-mask required value="@Input.SecondaryPhoneNumber" />
                 </div>
                 <div class="col-md-6">
                     <label for="BirthDate" class="form-label">Doğum tarihi</label>
-                    <input type="date" id="BirthDate" name="BirthDate" class="form-control" value="@Input.BirthDateValue" />
+                    <input type="date" id="BirthDate" name="BirthDate" class="form-control" required value="@Input.BirthDateValue" />
                 </div>
                 <div class="col-12">
                     <label for="Address" class="form-label">Adres</label>
-                    <textarea id="Address" name="Address" class="form-control" rows="3">@Input.Address</textarea>
+                    <textarea id="Address" name="Address" class="form-control" rows="3" maxlength="500" required>@Input.Address</textarea>
                 </div>
                 <div class="col-12">
                     <label for="Biography" class="form-label">Sporcu notu</label>
-                    <textarea id="Biography" name="Biography" class="form-control" rows="4">@Input.Biography</textarea>
+                    <textarea id="Biography" name="Biography" class="form-control" rows="4" maxlength="2000">@Input.Biography</textarea>
                 </div>
                 <div class="col-12">
                     <label for="ProfilePhoto" class="form-label">Görsel</label>
@@ -120,7 +116,6 @@
         Input.NationalIdentityNumber = profile.NationalIdentityNumber;
         Input.PhoneNumber = profile.PhoneNumber;
         Input.SecondaryPhoneNumber = profile.SecondaryPhoneNumber;
-        Input.ParentPhoneNumber = profile.ParentPhoneNumber;
         Input.Address = profile.Address;
         Input.Biography = profile.Biography;
         Input.BirthDate = profile.BirthDate.HasValue ? profile.BirthDate.Value.ToDateTime(TimeOnly.MinValue) : null;
@@ -129,8 +124,7 @@
 
     private void SetStatusMessage()
     {
-        var query = new Uri(Navigation.Uri).Query;
-        var parameters = QueryHelpers.ParseQuery(query);
+        var parameters = QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
         if (parameters.ContainsKey("saved"))
         {
             message = "Başarılı: Profil bilgileriniz kaydedildi.";
@@ -149,7 +143,6 @@
         public string? NationalIdentityNumber { get; set; }
         public string? PhoneNumber { get; set; }
         public string? SecondaryPhoneNumber { get; set; }
-        public string? ParentPhoneNumber { get; set; }
         public string? Address { get; set; }
         public string? Biography { get; set; }
         public DateTime? BirthDate { get; set; }

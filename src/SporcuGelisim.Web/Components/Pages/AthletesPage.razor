@@ -96,8 +96,7 @@ else
                 <div class="detail-stat-grid">
                     <div><span>TC kimlik no</span><strong>@DisplayValue(selectedAthlete.NationalIdentityNumber)</strong></div>
                     <div><span>Telefon</span><strong>@DisplayValue(selectedAthlete.PhoneNumber)</strong></div>
-                    <div><span>2. telefon</span><strong>@DisplayValue(selectedAthlete.SecondaryPhoneNumber)</strong></div>
-                    <div><span>Ebeveyn no</span><strong>@DisplayValue(selectedAthlete.ParentPhoneNumber)</strong></div>
+                    <div><span>2. telefon (ebeveyn no)</span><strong>@DisplayValue(selectedAthlete.SecondaryPhoneNumber)</strong></div>
                     <div><span>Doğum tarihi</span><strong>@(selectedAthlete.BirthDate?.ToString("dd.MM.yyyy") ?? "Girilmemiş")</strong></div>
                     <div><span>Adres</span><strong>@DisplayValue(selectedAthlete.Address)</strong></div>
                 </div>

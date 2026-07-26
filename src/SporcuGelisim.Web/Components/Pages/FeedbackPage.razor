@@ -1,12 +1,12 @@
 @page "/feedback"
 @attribute [Authorize]
-@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.EntityFrameworkCore
 @using SporcuGelisim.Domain.Enums
 @using SporcuGelisim.Infrastructure.Data
 @inject ApplicationDbContext Db
 @inject ICurrentUserService CurrentUser
-@inject IFeedbackService FeedbackService
+@inject NavigationManager Navigation
 
 <PageTitle>Geri Bildirimler</PageTitle>
 
@@ -24,29 +24,27 @@
             <h2>Antrenöre geri bildirim gönder</h2>
         </div>
 
-        <EditForm Model="input" OnValidSubmit="SubmitAsync" FormName="athlete-feedback">
-            <DataAnnotationsValidator />
-            <ValidationSummary class="alert alert-danger" role="alert" />
-
+        <form method="post" action="/feedback/send" data-enhance="false">
+            <AntiforgeryToken />
             <div class="row g-3">
                 <div class="col-md-5">
                     <label class="form-label" for="CoachId">Antrenör</label>
-                    <InputSelect id="CoachId" class="form-select" @bind-Value="input.CoachUserId">
+                    <select id="CoachId" name="CoachUserId" class="form-select" required>
                         <option value="">Seçiniz</option>
                         @foreach (var coach in coaches)
                         {
                             <option value="@coach.Id">@coach.Name</option>
                         }
-                    </InputSelect>
+                    </select>
                 </div>
                 <div class="col-md-7">
                     <label class="form-label" for="Comment">Mesaj</label>
-                    <InputTextArea id="Comment" class="form-control" rows="4" @bind-Value="input.Comment" />
+                    <textarea id="Comment" name="Comment" class="form-control" rows="4" maxlength="2000" required></textarea>
                 </div>
             </div>
 
             <button class="btn btn-primary mt-3" type="submit" disabled="@(athleteProfileId == Guid.Empty || coaches.Count == 0)">Gönder</button>
-        </EditForm>
+        </form>
 
         <StatusMessage Message="@message" />
     </section>
@@ -81,7 +79,6 @@
 </section>
 
 @code {
-    private FeedbackInput input = new();
     private Guid athleteProfileId;
     private IReadOnlyList<CoachOption> coaches = [];
     private IReadOnlyList<FeedbackRow> feedbackRows = [];
@@ -89,21 +86,20 @@
 
     protected override async Task OnInitializedAsync()
     {
+        SetStatusMessage();
         await LoadAsync();
     }
 
-    private async Task SubmitAsync()
+    private void SetStatusMessage()
     {
-        try
+        var parameters = QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
+        if (parameters.ContainsKey("sent"))
         {
-            await FeedbackService.CreateAsync(new CreateFeedbackRequest(athleteProfileId, null, input.CoachUserId, DateTimeOffset.UtcNow, input.Comment), CancellationToken.None);
-            input = new();
             message = "Başarılı: Geri bildiriminiz antrenörünüze gönderildi.";
-            await LoadAsync();
         }
-        catch (Exception ex)
+        else if (parameters.TryGetValue("error", out var error))
         {
-            message = $"Hata: {ex.Message}";
+            message = $"Hata: {error}";
         }
     }
 
@@ -150,16 +146,6 @@
                 feedback.FeedbackDate,
                 feedback.Comment))
             .ToListAsync(CancellationToken.None);
-    }
-
-    private sealed class FeedbackInput
-    {
-        [Required(ErrorMessage = "Antrenör seçimi zorunludur.")]
-        public Guid? CoachUserId { get; set; }
-
-        [Required(ErrorMessage = "Mesaj zorunludur.")]
-        [StringLength(2000, ErrorMessage = "Mesaj en fazla 2000 karakter olabilir.")]
-        public string Comment { get; set; } = string.Empty;
     }
 
     private sealed record CoachOption(Guid Id, string Name);

@@ -45,6 +45,22 @@ public sealed class SecurityPageTests
         Assert.True((int)response.StatusCode is 302 or 401);
     }
 
+    [Fact]
+    public async Task Anonymous_user_cannot_send_feedback()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["CoachUserId"] = Guid.NewGuid().ToString(),
+            ["Comment"] = "Deneme mesajı"
+        });
+
+        var response = await client.PostAsync("/feedback/send", content);
+
+        Assert.True((int)response.StatusCode is 302 or 401);
+    }
+
     [Theory]
     [InlineData("/coach/words")]
     [InlineData("/coach/athletes")]

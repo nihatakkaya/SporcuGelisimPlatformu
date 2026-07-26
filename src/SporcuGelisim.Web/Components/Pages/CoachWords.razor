@@ -578,7 +578,7 @@
     private bool CanEditWord(WordRow word) => CanEditWord(word.Id, word.CreatedByUserId);
 
     private bool CanEditWord(Guid wordId, Guid? createdByUserId) =>
-        isAdmin || createdByUserId == currentUserId;
+        isAdmin || createdByUserId == currentUserId || createdByUserId is null;
 
     private static string StatusText(WordRequestStatus status) => status switch
     {
