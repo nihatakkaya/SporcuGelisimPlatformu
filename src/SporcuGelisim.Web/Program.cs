@@ -132,6 +132,172 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.MapAdditionalIdentityEndpoints();
+
+app.MapPost("/coach/athletes/add", async (
+        HttpRequest request,
+        ClaimsPrincipal principal,
+        ApplicationDbContext db,
+        UserManager<ApplicationUser> userManager,
+        CancellationToken cancellationToken) =>
+    {
+        var coachIdValue = userManager.GetUserId(principal);
+        if (!Guid.TryParse(coachIdValue, out var coachId) || !principal.IsInRole(RoleNames.Coach))
+        {
+            return Results.LocalRedirect("/Account/AccessDenied");
+        }
+
+        var form = await request.ReadFormAsync(cancellationToken);
+        var athleteProfileId = ParseNullableGuid(form["AthleteProfileId"]);
+        if (!athleteProfileId.HasValue)
+        {
+            return Results.LocalRedirect("/athletes?coachMissing=1");
+        }
+
+        var athleteExists = await db.AthleteProfiles.AnyAsync(x => x.Id == athleteProfileId.Value, cancellationToken);
+        if (!athleteExists)
+        {
+            return Results.LocalRedirect("/athletes?coachMissing=1");
+        }
+
+        var relation = await db.AthleteRelations.FirstOrDefaultAsync(x =>
+            x.AthleteProfileId == athleteProfileId.Value &&
+            x.RelatedUserId == coachId &&
+            x.RelationType == AthleteRelationType.Coach,
+            cancellationToken);
+
+        if (relation is null)
+        {
+            db.AthleteRelations.Add(new AthleteRelation
+            {
+                AthleteProfileId = athleteProfileId.Value,
+                RelatedUserId = coachId,
+                RelationType = AthleteRelationType.Coach,
+                CreatedByUserId = coachId
+            });
+        }
+        else
+        {
+            relation.IsActive = true;
+            relation.EndDate = null;
+            relation.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.LocalRedirect($"/athletes/{athleteProfileId.Value}?coachAdded=1");
+    })
+    .RequireAuthorization(policy => policy.RequireRole(RoleNames.Coach));
+
+app.MapPost("/coach/athletes/remove", async (
+        HttpRequest request,
+        ClaimsPrincipal principal,
+        ApplicationDbContext db,
+        UserManager<ApplicationUser> userManager,
+        CancellationToken cancellationToken) =>
+    {
+        var coachIdValue = userManager.GetUserId(principal);
+        if (!Guid.TryParse(coachIdValue, out var coachId) || !principal.IsInRole(RoleNames.Coach))
+        {
+            return Results.LocalRedirect("/Account/AccessDenied");
+        }
+
+        var form = await request.ReadFormAsync(cancellationToken);
+        var athleteProfileId = ParseNullableGuid(form["AthleteProfileId"]);
+        if (!athleteProfileId.HasValue)
+        {
+            return Results.LocalRedirect("/coach/athletes?coachMissing=1");
+        }
+
+        var relation = await db.AthleteRelations.FirstOrDefaultAsync(x =>
+            x.AthleteProfileId == athleteProfileId.Value &&
+            x.RelatedUserId == coachId &&
+            x.RelationType == AthleteRelationType.Coach &&
+            x.IsActive,
+            cancellationToken);
+        if (relation is null)
+        {
+            return Results.LocalRedirect("/coach/athletes?coachMissing=1");
+        }
+
+        relation.IsActive = false;
+        relation.EndDate = DateTimeOffset.UtcNow;
+        relation.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.LocalRedirect("/coach/athletes?coachRemoved=1");
+    })
+    .RequireAuthorization(policy => policy.RequireRole(RoleNames.Coach));
+
+app.MapPost("/coach/athletes/assign-parent", async (
+        HttpRequest request,
+        ClaimsPrincipal principal,
+        ApplicationDbContext db,
+        UserManager<ApplicationUser> userManager,
+        CancellationToken cancellationToken) =>
+    {
+        var coachIdValue = userManager.GetUserId(principal);
+        if (!Guid.TryParse(coachIdValue, out var coachId) || !principal.IsInRole(RoleNames.Coach))
+        {
+            return Results.LocalRedirect("/Account/AccessDenied");
+        }
+
+        var form = await request.ReadFormAsync(cancellationToken);
+        var athleteProfileId = ParseNullableGuid(form["AthleteProfileId"]);
+        var parentUserId = ParseNullableGuid(form["ParentUserId"]);
+        if (!athleteProfileId.HasValue || !parentUserId.HasValue)
+        {
+            return Results.LocalRedirect("/coach/athletes?parentMissing=1");
+        }
+
+        var ownsAthlete = await db.AthleteRelations.AnyAsync(x =>
+            x.AthleteProfileId == athleteProfileId.Value &&
+            x.RelatedUserId == coachId &&
+            x.RelationType == AthleteRelationType.Coach &&
+            x.IsActive,
+            cancellationToken);
+        if (!ownsAthlete)
+        {
+            return Results.LocalRedirect("/Account/AccessDenied");
+        }
+
+        var parentHasRole = await (
+            from userRole in db.UserRoles.AsNoTracking()
+            join role in db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            join user in db.Users.AsNoTracking() on userRole.UserId equals user.Id
+            where userRole.UserId == parentUserId.Value && role.Name == RoleNames.Parent && user.IsActive
+            select userRole.UserId)
+            .AnyAsync(cancellationToken);
+        if (!parentHasRole)
+        {
+            return Results.LocalRedirect($"/coach/athletes/{athleteProfileId.Value}?parentInvalid=1");
+        }
+
+        var relation = await db.AthleteRelations.FirstOrDefaultAsync(x =>
+            x.AthleteProfileId == athleteProfileId.Value &&
+            x.RelatedUserId == parentUserId.Value &&
+            x.RelationType == AthleteRelationType.Parent,
+            cancellationToken);
+
+        if (relation is null)
+        {
+            db.AthleteRelations.Add(new AthleteRelation
+            {
+                AthleteProfileId = athleteProfileId.Value,
+                RelatedUserId = parentUserId.Value,
+                RelationType = AthleteRelationType.Parent,
+                CreatedByUserId = coachId
+            });
+        }
+        else
+        {
+            relation.IsActive = true;
+            relation.EndDate = null;
+            relation.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.LocalRedirect($"/coach/athletes/{athleteProfileId.Value}?parentAssigned=1");
+    })
+    .RequireAuthorization(policy => policy.RequireRole(RoleNames.Coach));
+
 app.MapPost("/admin/relations/assign", async (
         HttpRequest request,
         ClaimsPrincipal principal,

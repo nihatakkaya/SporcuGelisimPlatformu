@@ -65,7 +65,7 @@ else
         </section>
     </AuthorizeView>
 
-    <div class="dashboard-grid">
+    <div class="dashboard-grid dashboard-grid-single">
         <section class="dashboard-panel">
             <div class="dashboard-panel-header">
                 <div>
@@ -98,6 +98,10 @@ else
                     <a class="dashboard-action primary-action" href="/coach/athletes">
                         <strong>Sporcularımı aç</strong>
                         <span>Size bağlı sporcuların bilgilerini ve oturumlarını inceleyin.</span>
+                    </a>
+                    <a class="dashboard-action" href="/athletes">
+                        <strong>Sporcu ekle</strong>
+                        <span>Genel sporcu listesinden alt biriminize sporcu ekleyin.</span>
                     </a>
                     <a class="dashboard-action" href="/coach/words">
                         <strong>Kelime havuzunu yönet</strong>
@@ -132,31 +136,6 @@ else
                     <span>Sporcu gelişim notlarını ve yorumları takip edin.</span>
                 </a>
             </div>
-        </section>
-
-        <section class="dashboard-panel">
-            <div class="dashboard-panel-header">
-                <div>
-                    <p class="dashboard-kicker">Sistem Durumu</p>
-                    <h2>Kurulum özeti</h2>
-                </div>
-            </div>
-
-            @if (summary.AthleteCount == 0 && summary.SessionCount == 0)
-            {
-                <div class="dashboard-empty">
-                    <strong>Henüz sporcu ve oturum kaydı yok.</strong>
-                    <p>Önce kayıt oluşturma ekranından kullanıcı açın, ardından sporcu profilini ve ilişkileri tamamlayın.</p>
-                </div>
-            }
-            else
-            {
-                <ul class="dashboard-checklist">
-                    <li>Sporcu kayıtları takip ediliyor.</li>
-                    <li>Rol bazlı ekranlar aktif.</li>
-                    <li>Rapor ve geri bildirim akışı hazır.</li>
-                </ul>
-            }
         </section>
     </div>
 }

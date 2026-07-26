@@ -62,6 +62,25 @@ public sealed class SecurityPageTests
     }
 
     [Theory]
+    [InlineData("/coach/athletes/add")]
+    [InlineData("/coach/athletes/remove")]
+    [InlineData("/coach/athletes/assign-parent")]
+    public async Task Anonymous_user_cannot_manage_coach_athlete_relations(string path)
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["AthleteProfileId"] = Guid.NewGuid().ToString(),
+            ["ParentUserId"] = Guid.NewGuid().ToString()
+        });
+
+        var response = await client.PostAsync(path, content);
+
+        Assert.True((int)response.StatusCode is 302 or 401);
+    }
+
+    [Theory]
     [InlineData("/coach/words")]
     [InlineData("/coach/athletes")]
     [InlineData("/parent/athletes")]

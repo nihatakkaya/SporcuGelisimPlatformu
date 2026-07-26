@@ -1,16 +1,16 @@
 @page "/athletes"
 @page "/athletes/{SelectedAthleteId:guid}"
+@rendermode InteractiveServer
 @attribute [Authorize]
+@using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using SporcuGelisim.Domain.Enums
 @using SporcuGelisim.Infrastructure.Data
+@using SporcuGelisim.Infrastructure.Identity
 @inject ApplicationDbContext Db
-@inject ICurrentUserService CurrentUser
-@inject IAthleteRelationService AthleteRelationService
-@inject IAthleteProfileService AthleteProfileService
-@inject IAthleteSessionService SessionService
-@inject IFeedbackService FeedbackService
-@inject IMotivationWordService WordService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
 
 <PageTitle>Sporcular</PageTitle>
 
@@ -18,13 +18,15 @@
     <div>
         <p class="dashboard-kicker">Sporcular</p>
         <h1>Sporcular</h1>
-        <p>Yetkiniz olan sporcular alfabetik sırada listelenir. İsme basarak sporcunun tüm bilgilerini görüntüleyebilirsiniz.</p>
+        <p>Sporcular alfabetik sırada listelenir. Antrenör hesabı ile giriş yaptıysanız seçtiğiniz sporcuyu kendi alt biriminize ekleyebilirsiniz.</p>
     </div>
     <div class="hero-badge">
         <span>Toplam</span>
         <strong>@athletes.Count</strong>
     </div>
 </section>
+
+<StatusMessage Message="@message" />
 
 @if (isLoading)
 {
@@ -38,7 +40,7 @@ else if (athletes.Count == 0)
     <section class="content-card p-4">
         <div class="dashboard-empty">
             <strong>Gösterilecek sporcu yok.</strong>
-            <p>Admin sporcu oluşturduktan ve gerekli atamaları yaptıktan sonra liste dolacaktır.</p>
+            <p>Admin sporcu oluşturduktan sonra liste dolacaktır.</p>
         </div>
     </section>
 }
@@ -98,6 +100,31 @@ else
                     </div>
                 </div>
 
+                <AuthorizeView Roles="@RoleNames.Coach">
+                    <div class="inline-action-panel">
+                        @if (coachAthleteIds.Contains(selectedAthlete.Id))
+                        {
+                            <div>
+                                <strong>Bu sporcu alt biriminizde.</strong>
+                                <span>Sporcunun detaylı takibi ve ebeveyn eşleştirmesi için Sporcularım ekranını kullanabilirsiniz.</span>
+                            </div>
+                            <a class="btn btn-outline-secondary" href="@($"/coach/athletes/{selectedAthlete.Id}")">Sporcularımda aç</a>
+                        }
+                        else
+                        {
+                            <div>
+                                <strong>Alt biriminize ekleyin.</strong>
+                                <span>Ekledikten sonra bu sporcuya ait önceki geri bildirimler ve kelime atamaları, silinmeden yeniden görünür olur.</span>
+                            </div>
+                            <form method="post" action="/coach/athletes/add" data-enhance="false">
+                                <AntiforgeryToken />
+                                <input type="hidden" name="AthleteProfileId" value="@selectedAthlete.Id" />
+                                <button class="btn btn-primary" type="submit">Alt birimime ekle</button>
+                            </form>
+                        }
+                    </div>
+                </AuthorizeView>
+
                 <div class="detail-stat-grid">
                     <div><span>TC kimlik no</span><strong>@DisplayValue(selectedAthlete.NationalIdentityNumber)</strong></div>
                     <div><span>Telefon</span><strong>@DisplayValue(selectedAthlete.PhoneNumber)</strong></div>
@@ -106,73 +133,76 @@ else
                     <div><span>Adres</span><strong>@DisplayValue(selectedAthlete.Address)</strong></div>
                 </div>
 
-                <div class="detail-sections">
-                    <section>
-                        <div class="section-title-row">
-                            <h3>Oturumlar</h3>
-                            <span>@sessions.Count kayıt</span>
-                        </div>
-                        @if (sessions.Count == 0)
-                        {
-                            <p class="muted-line">Oturum kaydı yok.</p>
-                        }
-                        else
-                        {
-                            <div class="compact-list">
-                                @foreach (var session in sessions.Take(5))
-                                {
-                                    <div>
-                                        <strong>@session.Title</strong>
-                                        <span>@session.SessionDate.ToLocalTime().ToString("dd.MM.yyyy") - @StatusText(session.Status)</span>
-                                    </div>
-                                }
+                @if (CanShowPrivateDetails(selectedAthlete.Id))
+                {
+                    <div class="detail-sections">
+                        <section>
+                            <div class="section-title-row">
+                                <h3>Oturumlar</h3>
+                                <span>@sessions.Count kayıt</span>
                             </div>
-                        }
-                    </section>
+                            @if (sessions.Count == 0)
+                            {
+                                <p class="muted-line">Oturum kaydı yok.</p>
+                            }
+                            else
+                            {
+                                <div class="compact-list">
+                                    @foreach (var session in sessions.Take(5))
+                                    {
+                                        <div>
+                                            <strong>@session.Title</strong>
+                                            <span>@session.SessionDate.ToLocalTime().ToString("dd.MM.yyyy") - @StatusText(session.Status)</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </section>
 
-                    <section>
-                        <div class="section-title-row">
-                            <h3>Kelimeler</h3>
-                            <span>@assignedWords.Count kayıt</span>
-                        </div>
-                        @if (assignedWords.Count == 0)
-                        {
-                            <p class="muted-line">Atanmış kelime yok.</p>
-                        }
-                        else
-                        {
-                            <div class="word-chip-list">
-                                @foreach (var assignment in assignedWords)
-                                {
-                                    <span>@assignment.WordText</span>
-                                }
+                        <section>
+                            <div class="section-title-row">
+                                <h3>Kelimeler</h3>
+                                <span>@assignedWords.Count kayıt</span>
                             </div>
-                        }
-                    </section>
+                            @if (assignedWords.Count == 0)
+                            {
+                                <p class="muted-line">Atanmış kelime yok.</p>
+                            }
+                            else
+                            {
+                                <div class="word-chip-list">
+                                    @foreach (var assignment in assignedWords)
+                                    {
+                                        <span>@assignment.WordText</span>
+                                    }
+                                </div>
+                            }
+                        </section>
 
-                    <section class="wide-section">
-                        <div class="section-title-row">
-                            <h3>Geri Bildirimler</h3>
-                            <span>@feedbacks.Count kayıt</span>
-                        </div>
-                        @if (feedbacks.Count == 0)
-                        {
-                            <p class="muted-line">Görüntülenebilir geri bildirim yok.</p>
-                        }
-                        else
-                        {
-                            <div class="compact-list">
-                                @foreach (var feedback in feedbacks.Take(4))
-                                {
-                                    <div>
-                                        <strong>@feedback.FeedbackDate.ToLocalTime().ToString("dd.MM.yyyy")</strong>
-                                        <span>@feedback.Comment</span>
-                                    </div>
-                                }
+                        <section class="wide-section">
+                            <div class="section-title-row">
+                                <h3>Geri Bildirimler</h3>
+                                <span>@feedbacks.Count kayıt</span>
                             </div>
-                        }
-                    </section>
-                </div>
+                            @if (feedbacks.Count == 0)
+                            {
+                                <p class="muted-line">Görüntülenebilir geri bildirim yok.</p>
+                            }
+                            else
+                            {
+                                <div class="compact-list">
+                                    @foreach (var feedback in feedbacks.Take(4))
+                                    {
+                                        <div>
+                                            <strong>@feedback.FeedbackDate.ToLocalTime().ToString("dd.MM.yyyy")</strong>
+                                            <span>@feedback.Comment</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </section>
+                    </div>
+                }
             }
         </article>
     </section>
@@ -187,15 +217,25 @@ else
     private IReadOnlyList<FeedbackDto> feedbacks = [];
     private IReadOnlyList<WordAssignmentDto> allAssignments = [];
     private IReadOnlyList<WordAssignmentDto> assignedWords = [];
+    private readonly HashSet<Guid> coachAthleteIds = [];
     private AthleteProfileDto? selectedAthlete;
+    private Guid? currentUserId;
+    private bool isAdmin;
+    private bool isCoach;
+    private bool isParent;
+    private bool isAthlete;
     private bool isLoading = true;
     private string? searchText;
+    private string? message;
 
     protected override async Task OnParametersSetAsync()
     {
         isLoading = true;
+        SetMessage();
+        await SetCurrentUserAsync();
+        await LoadCoachAthleteIdsAsync();
         athletes = (await LoadAthletesAsync()).OrderBy(x => DisplayName(x)).ToList();
-        allAssignments = await WordService.GetAthleteAssignmentsAsync(CancellationToken.None);
+        allAssignments = await LoadAssignmentsAsync();
 
         var selectedId = SelectedAthleteId ?? athletes.FirstOrDefault()?.Id;
         if (selectedId.HasValue && athletes.Any(x => x.Id == selectedId.Value))
@@ -213,34 +253,219 @@ else
         isLoading = false;
     }
 
-    private async Task<IReadOnlyList<AthleteProfileDto>> LoadAthletesAsync()
+    private async Task SetCurrentUserAsync()
     {
-        if (CurrentUser.Roles.Contains(RoleNames.Admin) || CurrentUser.Roles.Contains(RoleNames.Coach) || CurrentUser.Roles.Contains(RoleNames.Parent))
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        currentUserId = user?.Id;
+        isAdmin = authState.User.IsInRole(RoleNames.Admin);
+        isCoach = authState.User.IsInRole(RoleNames.Coach);
+        isParent = authState.User.IsInRole(RoleNames.Parent);
+        isAthlete = authState.User.IsInRole(RoleNames.Athlete);
+    }
+
+    private void SetMessage()
+    {
+        var query = new Uri(Navigation.Uri).Query;
+        if (query.Contains("coachAdded=1", StringComparison.OrdinalIgnoreCase))
         {
-            return await AthleteRelationService.GetRelatedAthletesAsync(CancellationToken.None);
+            message = "Başarılı: Sporcu alt biriminize eklendi.";
+        }
+        else if (query.Contains("coachMissing=1", StringComparison.OrdinalIgnoreCase))
+        {
+            message = "Hata: Sporcu seçimi bulunamadı.";
+        }
+        else
+        {
+            message = null;
+        }
+    }
+
+    private async Task LoadCoachAthleteIdsAsync()
+    {
+        coachAthleteIds.Clear();
+        if (!isCoach || currentUserId is null)
+        {
+            return;
         }
 
-        if (CurrentUser.Roles.Contains(RoleNames.Athlete) && CurrentUser.UserId is not null)
+        var ids = await Db.AthleteRelations.AsNoTracking()
+            .Where(x => x.RelatedUserId == currentUserId.Value && x.RelationType == AthleteRelationType.Coach && x.IsActive)
+            .Select(x => x.AthleteProfileId)
+            .ToListAsync(CancellationToken.None);
+
+        foreach (var id in ids)
+        {
+            coachAthleteIds.Add(id);
+        }
+    }
+
+    private async Task<IReadOnlyList<AthleteProfileDto>> LoadAthletesAsync()
+    {
+        if (isAdmin || isCoach)
+        {
+            return await LoadAllAthletesAsync();
+        }
+
+        if (isParent && currentUserId.HasValue)
+        {
+            return await LoadRelatedAthletesAsync(currentUserId.Value, AthleteRelationType.Parent);
+        }
+
+        if (isAthlete && currentUserId is not null)
         {
             var athleteProfileId = await Db.AthleteProfiles.AsNoTracking()
-                .Where(x => x.UserId == CurrentUser.UserId.Value)
+                .Where(x => x.UserId == currentUserId.Value)
                 .Select(x => (Guid?)x.Id)
                 .FirstOrDefaultAsync(CancellationToken.None);
             return athleteProfileId.HasValue
-                ? [await AthleteProfileService.GetAsync(athleteProfileId.Value, CancellationToken.None)]
+                ? await LoadAthleteByIdAsync(athleteProfileId.Value)
                 : [];
         }
 
         return [];
     }
 
+    private async Task<IReadOnlyList<AthleteProfileDto>> LoadAllAthletesAsync() =>
+        await (
+            from profile in Db.AthleteProfiles.AsNoTracking()
+            join user in Db.Users.AsNoTracking() on profile.UserId equals user.Id
+            join branch in Db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
+            from branch in branchJoin.DefaultIfEmpty()
+            join photoAsset in Db.FileAssets.AsNoTracking() on user.ProfilePhotoId equals photoAsset.Id into photoJoin
+            from photo in photoJoin.DefaultIfEmpty()
+            orderby user.FirstName, user.LastName
+            select new AthleteProfileDto(
+                profile.Id,
+                profile.UserId,
+                (user.FirstName + " " + user.LastName).Trim(),
+                profile.PrimaryBranchId,
+                branch == null ? null : branch.Name,
+                profile.NationalIdentityNumber,
+                profile.PhoneNumber,
+                profile.SecondaryPhoneNumber,
+                profile.ParentPhoneNumber,
+                profile.Address,
+                profile.Biography,
+                profile.BirthDate,
+                photo == null ? null : photo.RelativePath))
+            .ToListAsync(CancellationToken.None);
+
+    private async Task<IReadOnlyList<AthleteProfileDto>> LoadRelatedAthletesAsync(Guid userId, AthleteRelationType relationType) =>
+        await (
+            from relation in Db.AthleteRelations.AsNoTracking()
+            join profile in Db.AthleteProfiles.AsNoTracking() on relation.AthleteProfileId equals profile.Id
+            join user in Db.Users.AsNoTracking() on profile.UserId equals user.Id
+            join branch in Db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
+            from branch in branchJoin.DefaultIfEmpty()
+            join photoAsset in Db.FileAssets.AsNoTracking() on user.ProfilePhotoId equals photoAsset.Id into photoJoin
+            from photo in photoJoin.DefaultIfEmpty()
+            where relation.RelatedUserId == userId && relation.RelationType == relationType && relation.IsActive
+            orderby user.FirstName, user.LastName
+            select new AthleteProfileDto(
+                profile.Id,
+                profile.UserId,
+                (user.FirstName + " " + user.LastName).Trim(),
+                profile.PrimaryBranchId,
+                branch == null ? null : branch.Name,
+                profile.NationalIdentityNumber,
+                profile.PhoneNumber,
+                profile.SecondaryPhoneNumber,
+                profile.ParentPhoneNumber,
+                profile.Address,
+                profile.Biography,
+                profile.BirthDate,
+                photo == null ? null : photo.RelativePath))
+            .ToListAsync(CancellationToken.None);
+
+    private async Task<IReadOnlyList<AthleteProfileDto>> LoadAthleteByIdAsync(Guid athleteProfileId) =>
+        await (
+            from profile in Db.AthleteProfiles.AsNoTracking()
+            join user in Db.Users.AsNoTracking() on profile.UserId equals user.Id
+            join branch in Db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
+            from branch in branchJoin.DefaultIfEmpty()
+            join photoAsset in Db.FileAssets.AsNoTracking() on user.ProfilePhotoId equals photoAsset.Id into photoJoin
+            from photo in photoJoin.DefaultIfEmpty()
+            where profile.Id == athleteProfileId
+            select new AthleteProfileDto(
+                profile.Id,
+                profile.UserId,
+                (user.FirstName + " " + user.LastName).Trim(),
+                profile.PrimaryBranchId,
+                branch == null ? null : branch.Name,
+                profile.NationalIdentityNumber,
+                profile.PhoneNumber,
+                profile.SecondaryPhoneNumber,
+                profile.ParentPhoneNumber,
+                profile.Address,
+                profile.Biography,
+                profile.BirthDate,
+                photo == null ? null : photo.RelativePath))
+            .ToListAsync(CancellationToken.None);
+
+    private async Task<IReadOnlyList<WordAssignmentDto>> LoadAssignmentsAsync()
+    {
+        var athleteIds = athletes.Select(x => x.Id).ToHashSet();
+        return await (
+            from assignment in Db.AthleteWordAssignments.AsNoTracking()
+            join word in Db.MotivationWords.AsNoTracking() on assignment.MotivationWordId equals word.Id
+            join profile in Db.AthleteProfiles.AsNoTracking() on assignment.AthleteProfileId equals profile.Id
+            join user in Db.Users.AsNoTracking() on profile.UserId equals user.Id
+            where assignment.IsActive && athleteIds.Contains(assignment.AthleteProfileId)
+            orderby word.Text
+            select new WordAssignmentDto(
+                assignment.Id,
+                word.Id,
+                word.Text,
+                assignment.AthleteProfileId,
+                (user.FirstName + " " + user.LastName).Trim(),
+                assignment.IsActive))
+            .ToListAsync(CancellationToken.None);
+    }
+
     private async Task LoadSelectedAsync(Guid athleteId)
     {
-        selectedAthlete = await AthleteProfileService.GetAsync(athleteId, CancellationToken.None);
-        sessions = await SessionService.GetForAthleteAsync(athleteId, CancellationToken.None);
-        feedbacks = await FeedbackService.GetVisibleForAthleteAsync(athleteId, CancellationToken.None);
+        selectedAthlete = athletes.FirstOrDefault(x => x.Id == athleteId);
+
+        if (!CanShowPrivateDetails(athleteId))
+        {
+            sessions = [];
+            feedbacks = [];
+            assignedWords = [];
+            return;
+        }
+
+        sessions = await Db.AthleteSessions.AsNoTracking()
+            .Where(x => x.AthleteProfileId == athleteId)
+            .OrderByDescending(x => x.SessionDate)
+            .Select(x => new AthleteSessionDto(
+                x.Id,
+                x.AthleteProfileId,
+                x.Title,
+                x.SessionNumber,
+                x.SessionDate,
+                x.Status))
+            .ToListAsync(CancellationToken.None);
+
+        feedbacks = await Db.Feedbacks.AsNoTracking()
+            .Where(x => x.AthleteProfileId == athleteId && (isAdmin || x.AuthorUserId == currentUserId || x.RecipientUserId == currentUserId))
+            .OrderByDescending(x => x.FeedbackDate)
+            .Select(x => new FeedbackDto(
+                x.Id,
+                x.AthleteProfileId,
+                x.SessionId,
+                x.AuthorUserId,
+                x.RecipientUserId,
+                x.FeedbackDate,
+                x.Comment))
+            .ToListAsync(CancellationToken.None);
         assignedWords = allAssignments.Where(x => x.AthleteProfileId == athleteId && x.IsActive).ToList();
     }
+
+    private bool CanShowPrivateDetails(Guid athleteId) =>
+        !isCoach ||
+        isAdmin ||
+        coachAthleteIds.Contains(athleteId);
 
     private IEnumerable<AthleteProfileDto> FilteredAthletes() =>
         string.IsNullOrWhiteSpace(searchText)

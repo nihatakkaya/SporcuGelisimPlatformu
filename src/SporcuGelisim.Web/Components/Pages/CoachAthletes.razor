@@ -10,6 +10,7 @@
 @inject ApplicationDbContext Db
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
 
 <PageTitle>Sporcularım</PageTitle>
 
@@ -17,13 +18,15 @@
     <div>
         <p class="dashboard-kicker">Antrenör Takibi</p>
         <h1>Sporcularım</h1>
-        <p>Size bağlı sporcuları, branşlarını, iletişim bilgilerini, oturumlarını ve atanmış kelimelerini takip edin.</p>
+        <p>Size bağlı sporcuları, branşlarını, iletişim bilgilerini, oturumlarını, geri bildirimlerini ve atanmış kelimelerini takip edin.</p>
     </div>
     <div class="hero-badge">
         <span>Toplam sporcu</span>
         <strong>@athletes.Count</strong>
     </div>
 </section>
+
+<StatusMessage Message="@message" />
 
 @if (isLoading)
 {
@@ -37,7 +40,7 @@ else if (athletes.Count == 0)
     <section class="content-card p-4">
         <div class="dashboard-empty">
             <strong>Henüz size bağlı sporcu yok.</strong>
-            <p>Admin, sporcu atama ekranından sporcu ile antrenör arasında aktif ilişki kurmalıdır.</p>
+            <p>Sporcular ekranından istediğiniz sporcuyu kendi alt biriminize ekleyebilirsiniz.</p>
         </div>
     </section>
 }
@@ -97,6 +100,44 @@ else
                         <p>@(selectedAthlete.Biography ?? "Sporcu notu henüz girilmemiş.")</p>
                     </div>
                 </div>
+
+                @if (!isAdmin)
+                {
+                    <div class="inline-action-panel stacked-action-panel">
+                        <div>
+                            <strong>Alt birim işlemleri</strong>
+                            <span>Sporcuyu altınızdan çıkarmanız eski geri bildirimleri ve kelime atamalarını silmez.</span>
+                        </div>
+                        <form method="post" action="/coach/athletes/remove" data-enhance="false">
+                            <AntiforgeryToken />
+                            <input type="hidden" name="AthleteProfileId" value="@selectedAthlete.Id" />
+                            <button class="btn btn-outline-danger" type="submit">Altımdan çıkar</button>
+                        </form>
+                    </div>
+
+                    <div class="inline-action-panel stacked-action-panel">
+                        <div>
+                            <strong>Ebeveyn eşleştirme</strong>
+                            <span>Bu sporcuyu aktif bir ebeveyn hesabı ile eşleştirin.</span>
+                            @if (activeParents.Count > 0)
+                            {
+                                <small>Mevcut ebeveyn: @string.Join(", ", activeParents.Select(x => x.Name))</small>
+                            }
+                        </div>
+                        <form class="inline-select-form" method="post" action="/coach/athletes/assign-parent" data-enhance="false">
+                            <AntiforgeryToken />
+                            <input type="hidden" name="AthleteProfileId" value="@selectedAthlete.Id" />
+                            <select class="form-select" name="ParentUserId" required>
+                                <option value="">Ebeveyn seçin</option>
+                                @foreach (var parent in parents)
+                                {
+                                    <option value="@parent.Id">@parent.Name</option>
+                                }
+                            </select>
+                            <button class="btn btn-primary" type="submit" disabled="@(parents.Count == 0)">Eşleştir</button>
+                        </form>
+                    </div>
+                }
 
                 <div class="detail-stat-grid">
                     <div><span>TC kimlik no</span><strong>@DisplayValue(selectedAthlete.NationalIdentityNumber)</strong></div>
@@ -188,16 +229,21 @@ else
     private IReadOnlyList<FeedbackRow> feedbacks = [];
     private IReadOnlyList<AssignmentRow> allAssignments = [];
     private IReadOnlyList<AssignmentRow> assignedWords = [];
+    private IReadOnlyList<UserOption> parents = [];
+    private IReadOnlyList<ParentRow> activeParents = [];
     private AthleteRow? selectedAthlete;
     private Guid? currentUserId;
     private bool isAdmin;
     private bool isLoading = true;
     private string? searchText;
+    private string? message;
 
     protected override async Task OnParametersSetAsync()
     {
         isLoading = true;
+        SetMessage();
         await SetCurrentUserAsync();
+        parents = await LoadParentsAsync();
         athletes = await LoadAthletesAsync();
         allAssignments = await LoadAssignmentsAsync();
 
@@ -212,9 +258,39 @@ else
             sessions = [];
             feedbacks = [];
             assignedWords = [];
+            activeParents = [];
         }
 
         isLoading = false;
+    }
+
+    private void SetMessage()
+    {
+        var query = new Uri(Navigation.Uri).Query;
+        if (query.Contains("coachRemoved=1", StringComparison.OrdinalIgnoreCase))
+        {
+            message = "Başarılı: Sporcu alt biriminizden çıkarıldı.";
+        }
+        else if (query.Contains("parentAssigned=1", StringComparison.OrdinalIgnoreCase))
+        {
+            message = "Başarılı: Ebeveyn eşleştirmesi yapıldı.";
+        }
+        else if (query.Contains("coachMissing=1", StringComparison.OrdinalIgnoreCase))
+        {
+            message = "Hata: Aktif sporcu ilişkisi bulunamadı.";
+        }
+        else if (query.Contains("parentMissing=1", StringComparison.OrdinalIgnoreCase))
+        {
+            message = "Hata: Ebeveyn seçimi zorunludur.";
+        }
+        else if (query.Contains("parentInvalid=1", StringComparison.OrdinalIgnoreCase))
+        {
+            message = "Hata: Seçilen ebeveyn hesabı geçersiz.";
+        }
+        else
+        {
+            message = null;
+        }
     }
 
     private async Task SetCurrentUserAsync()
@@ -224,6 +300,16 @@ else
         currentUserId = user?.Id;
         isAdmin = authState.User.IsInRole(RoleNames.Admin);
     }
+
+    private async Task<IReadOnlyList<UserOption>> LoadParentsAsync() =>
+        await (
+            from user in Db.Users.AsNoTracking()
+            join userRole in Db.UserRoles.AsNoTracking() on user.Id equals userRole.UserId
+            join role in Db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where role.Name == RoleNames.Parent && user.IsActive
+            orderby user.FirstName, user.LastName
+            select new UserOption(user.Id, (user.FirstName + " " + user.LastName).Trim()))
+            .ToListAsync(CancellationToken.None);
 
     private async Task<IReadOnlyList<AthleteRow>> LoadAthletesAsync()
     {
@@ -299,12 +385,25 @@ else
             .ToListAsync(CancellationToken.None);
 
         assignedWords = allAssignments.Where(x => x.AthleteProfileId == athleteId).ToList();
+        activeParents = await (
+            from relation in Db.AthleteRelations.AsNoTracking()
+            join parent in Db.Users.AsNoTracking() on relation.RelatedUserId equals parent.Id
+            where relation.AthleteProfileId == athleteId &&
+                  relation.RelationType == AthleteRelationType.Parent &&
+                  relation.IsActive
+            orderby parent.FirstName, parent.LastName
+            select new ParentRow(parent.Id, (parent.FirstName + " " + parent.LastName).Trim()))
+            .ToListAsync(CancellationToken.None);
     }
 
     private IEnumerable<AthleteRow> FilteredAthletes() =>
         string.IsNullOrWhiteSpace(searchText)
             ? athletes
-            : athletes.Where(x => Contains(x.FullName, searchText) || Contains(x.BranchName, searchText) || Contains(x.PhoneNumber, searchText));
+            : athletes.Where(x =>
+                Contains(x.FullName, searchText) ||
+                Contains(x.BranchName, searchText) ||
+                Contains(x.PhoneNumber, searchText) ||
+                Contains(x.SecondaryPhoneNumber, searchText));
 
     private static bool Contains(string? value, string query) =>
         value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
@@ -370,4 +469,6 @@ else
     private sealed record SessionRow(string Title, DateTimeOffset SessionDate, SessionStatus Status);
     private sealed record FeedbackRow(DateTimeOffset FeedbackDate, string Comment);
     private sealed record AssignmentRow(Guid Id, Guid AthleteProfileId, string WordText);
+    private sealed record UserOption(Guid Id, string Name);
+    private sealed record ParentRow(Guid Id, string Name);
 }
