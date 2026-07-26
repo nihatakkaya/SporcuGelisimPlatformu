@@ -46,8 +46,13 @@ else
 {
     <section class="coach-athlete-layout">
         <aside class="athlete-list-panel">
+            <div class="list-toolbar">
+                <label for="AthleteSearch">Sporcu ara</label>
+                <input id="AthleteSearch" class="form-control" @bind="searchText" @bind:event="oninput" placeholder="Ad, branş veya telefon" />
+            </div>
+
             <div class="athlete-list">
-                @foreach (var athlete in athletes)
+                @foreach (var athlete in FilteredAthletes())
                 {
                     <a class="athlete-list-item @(selectedAthlete?.Id == athlete.Id ? "selected" : null)" href="@($"/athletes/{athlete.Id}")">
                         @if (!string.IsNullOrWhiteSpace(athlete.ProfilePhotoPath))
@@ -184,6 +189,7 @@ else
     private IReadOnlyList<WordAssignmentDto> assignedWords = [];
     private AthleteProfileDto? selectedAthlete;
     private bool isLoading = true;
+    private string? searchText;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -235,6 +241,18 @@ else
         feedbacks = await FeedbackService.GetVisibleForAthleteAsync(athleteId, CancellationToken.None);
         assignedWords = allAssignments.Where(x => x.AthleteProfileId == athleteId && x.IsActive).ToList();
     }
+
+    private IEnumerable<AthleteProfileDto> FilteredAthletes() =>
+        string.IsNullOrWhiteSpace(searchText)
+            ? athletes
+            : athletes.Where(x =>
+                Contains(DisplayName(x), searchText) ||
+                Contains(x.BranchName, searchText) ||
+                Contains(x.PhoneNumber, searchText) ||
+                Contains(x.SecondaryPhoneNumber, searchText));
+
+    private static bool Contains(string? value, string query) =>
+        value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
 
     private static string DisplayName(AthleteProfileDto athlete) =>
         string.IsNullOrWhiteSpace(athlete.FullName) ? "İsimsiz sporcu" : athlete.FullName;
