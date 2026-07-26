@@ -118,6 +118,8 @@ public sealed class SecurityPageTests
     [InlineData("/Account/Register")]
     [InlineData("/parent/athletes")]
     [InlineData("/admin/relations")]
+    [InlineData("/admin/coaches")]
+    [InlineData("/admin/parents")]
     public async Task Anonymous_user_is_redirected_from_role_pages(string path)
     {
         await using var factory = new WebApplicationFactory<Program>();

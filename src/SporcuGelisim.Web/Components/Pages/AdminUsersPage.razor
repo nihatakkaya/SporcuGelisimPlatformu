@@ -1,0 +1,265 @@
+@page "/admin/coaches"
+@page "/admin/coaches/{SelectedUserId:guid}"
+@page "/admin/parents"
+@page "/admin/parents/{SelectedUserId:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = RoleNames.Admin)]
+
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using SporcuGelisim.Domain.Enums
+@using SporcuGelisim.Infrastructure.Data
+@using SporcuGelisim.Infrastructure.Identity
+
+@inject UserManager<ApplicationUser> UserManager
+@inject ApplicationDbContext Db
+@inject NavigationManager Navigation
+
+<PageTitle>@PageTitleText</PageTitle>
+
+<section class="page-hero compact-hero">
+    <div>
+        <p class="dashboard-kicker">Admin</p>
+        <h1>@PageTitleText</h1>
+        <p>@PageDescription</p>
+    </div>
+    <div class="hero-badge">
+        <span>Toplam</span>
+        <strong>@users.Count</strong>
+    </div>
+</section>
+
+@if (isLoading)
+{
+    <section class="dashboard-loading" aria-live="polite">
+        <div class="spinner-border text-primary" role="status"></div>
+        <span>@LoadingText</span>
+    </section>
+}
+else if (users.Count == 0)
+{
+    <section class="content-card p-4">
+        <div class="dashboard-empty">
+            <strong>@EmptyTitle</strong>
+            <p>Kayıt oluşturma ekranından yeni hesap açıldığında bu liste dolacaktır.</p>
+        </div>
+    </section>
+}
+else
+{
+    <section class="coach-athlete-layout">
+        <aside class="athlete-list-panel">
+            <div class="list-toolbar">
+                <label for="UserSearch">@SearchLabel</label>
+                <input id="UserSearch" class="form-control" @bind="searchText" @bind:event="oninput" placeholder="Ad, e-posta veya telefon" />
+            </div>
+
+            <div class="athlete-list">
+                @foreach (var row in FilteredUsers())
+                {
+                    <a class="athlete-list-item @(selectedUser?.Id == row.Id ? "selected" : null)" href="@DetailUrl(row.Id)">
+                        @if (!string.IsNullOrWhiteSpace(row.PhotoPath))
+                        {
+                            <img class="athlete-avatar-image" src="@PhotoUrl(row.PhotoPath)" alt="@row.FullName" />
+                        }
+                        else
+                        {
+                            <span class="athlete-avatar">@Initials(row.FullName)</span>
+                        }
+                        <span>
+                            <strong>@DisplayName(row)</strong>
+                            <small>@row.Email</small>
+                        </span>
+                    </a>
+                }
+            </div>
+        </aside>
+
+        <article class="athlete-detail-panel">
+            @if (selectedUser is null)
+            {
+                <div class="dashboard-empty">
+                    <strong>@SelectTitle</strong>
+                    <p>Detayları görmek için soldaki listeden bir hesaba basın.</p>
+                </div>
+            }
+            else
+            {
+                <div class="athlete-profile-top">
+                    @if (!string.IsNullOrWhiteSpace(selectedUser.PhotoPath))
+                    {
+                        <img src="@PhotoUrl(selectedUser.PhotoPath)" alt="@selectedUser.FullName" />
+                    }
+                    else
+                    {
+                        <div class="athlete-photo-placeholder">@Initials(selectedUser.FullName)</div>
+                    }
+                    <div>
+                        <p class="dashboard-kicker">@RoleLabel</p>
+                        <h2>@DisplayName(selectedUser)</h2>
+                        <p>@selectedUser.Email</p>
+                    </div>
+                </div>
+
+                <div class="detail-stat-grid">
+                    <div><span>Telefon</span><strong>@DisplayValue(selectedUser.PhoneNumber)</strong></div>
+                    <div><span>E-posta onayı</span><strong>@(selectedUser.EmailConfirmed ? "Onaylandı" : "Onay bekliyor")</strong></div>
+                    <div><span>Durum</span><strong>@(selectedUser.IsActive ? "Aktif" : "Pasif")</strong></div>
+                    <div><span>Oluşturulma</span><strong>@selectedUser.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</strong></div>
+                    <div><span>Son giriş</span><strong>@(selectedUser.LastLoginAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "Henüz yok")</strong></div>
+                    <div><span>Bağlı sporcu</span><strong>@linkedAthletes.Count</strong></div>
+                </div>
+
+                <div class="detail-sections">
+                    <section class="wide-section">
+                        <div class="section-title-row">
+                            <h3>@LinkedAthletesTitle</h3>
+                            <span>@linkedAthletes.Count kayıt</span>
+                        </div>
+
+                        @if (linkedAthletes.Count == 0)
+                        {
+                            <p class="muted-line">@NoLinkedAthletesText</p>
+                        }
+                        else
+                        {
+                            <div class="compact-list">
+                                @foreach (var athlete in linkedAthletes)
+                                {
+                                    <div>
+                                        <strong><a href="@($"/athletes/{athlete.Id}")">@athlete.FullName</a></strong>
+                                        <span>@DisplayValue(athlete.BranchName) - @DisplayValue(athlete.PhoneNumber)</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </section>
+                </div>
+            }
+        </article>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public Guid? SelectedUserId { get; set; }
+
+    private IReadOnlyList<UserRow> users = [];
+    private IReadOnlyList<LinkedAthleteRow> linkedAthletes = [];
+    private UserRow? selectedUser;
+    private bool isLoading = true;
+    private string? searchText;
+
+    private bool IsParentPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("admin/parents", StringComparison.OrdinalIgnoreCase);
+    private string RoleName => IsParentPage ? RoleNames.Parent : RoleNames.Coach;
+    private AthleteRelationType RelationType => IsParentPage ? AthleteRelationType.Parent : AthleteRelationType.Coach;
+    private string RoleLabel => IsParentPage ? "Ebeveyn" : "Antrenör";
+    private string PageTitleText => IsParentPage ? "Ebeveynler" : "Antrenörler";
+    private string PageDescription => IsParentPage
+        ? "Ebeveyn hesaplarını alfabetik sırada görüntüleyin ve eşleştirildiği sporcuları kontrol edin."
+        : "Antrenör hesaplarını alfabetik sırada görüntüleyin ve sorumlu olduğu sporcuları kontrol edin.";
+    private string LoadingText => IsParentPage ? "Ebeveynler yükleniyor..." : "Antrenörler yükleniyor...";
+    private string EmptyTitle => IsParentPage ? "Gösterilecek ebeveyn yok." : "Gösterilecek antrenör yok.";
+    private string SelectTitle => IsParentPage ? "Ebeveyn seçin." : "Antrenör seçin.";
+    private string SearchLabel => IsParentPage ? "Ebeveyn ara" : "Antrenör ara";
+    private string LinkedAthletesTitle => IsParentPage ? "Eşleştirildiği sporcular" : "Sorumlu olduğu sporcular";
+    private string NoLinkedAthletesText => IsParentPage
+        ? "Bu ebeveyn hesabına bağlı aktif sporcu yok."
+        : "Bu antrenör hesabına bağlı aktif sporcu yok.";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoading = true;
+        users = await LoadUsersAsync();
+        var selectedId = SelectedUserId ?? users.FirstOrDefault()?.Id;
+        selectedUser = selectedId.HasValue ? users.FirstOrDefault(x => x.Id == selectedId.Value) : null;
+        linkedAthletes = selectedUser is null ? [] : await LoadLinkedAthletesAsync(selectedUser.Id);
+        isLoading = false;
+    }
+
+    private async Task<IReadOnlyList<UserRow>> LoadUsersAsync()
+    {
+        var roleUsers = await UserManager.GetUsersInRoleAsync(RoleName);
+        var orderedUsers = roleUsers.OrderBy(x => x.FirstName).ThenBy(x => x.LastName).ThenBy(x => x.Email).ToList();
+        var photoIds = orderedUsers.Where(x => x.ProfilePhotoId.HasValue).Select(x => x.ProfilePhotoId!.Value).ToList();
+        var photoPaths = await Db.FileAssets.AsNoTracking()
+            .Where(x => photoIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.RelativePath, CancellationToken.None);
+        var userIds = orderedUsers.Select(x => x.Id).ToList();
+        var relationCounts = await Db.AthleteRelations.AsNoTracking()
+            .Where(x => userIds.Contains(x.RelatedUserId) && x.RelationType == RelationType && x.IsActive)
+            .GroupBy(x => x.RelatedUserId)
+            .Select(x => new { UserId = x.Key, Count = x.Count() })
+            .ToDictionaryAsync(x => x.UserId, x => x.Count, CancellationToken.None);
+
+        return orderedUsers.Select(user => new UserRow(
+            user.Id,
+            user.FullName,
+            user.Email ?? "",
+            user.PhoneNumber,
+            user.EmailConfirmed,
+            user.IsActive,
+            user.CreatedAt,
+            user.LastLoginAt,
+            user.ProfilePhotoId.HasValue && photoPaths.TryGetValue(user.ProfilePhotoId.Value, out var path) ? path : null,
+            relationCounts.TryGetValue(user.Id, out var count) ? count : 0)).ToList();
+    }
+
+    private async Task<IReadOnlyList<LinkedAthleteRow>> LoadLinkedAthletesAsync(Guid userId) =>
+        await (
+            from relation in Db.AthleteRelations.AsNoTracking()
+            join profile in Db.AthleteProfiles.AsNoTracking() on relation.AthleteProfileId equals profile.Id
+            join athleteUser in Db.Users.AsNoTracking() on profile.UserId equals athleteUser.Id
+            join branch in Db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
+            from branch in branchJoin.DefaultIfEmpty()
+            where relation.RelatedUserId == userId && relation.RelationType == RelationType && relation.IsActive
+            orderby athleteUser.FirstName, athleteUser.LastName
+            select new LinkedAthleteRow(
+                profile.Id,
+                (athleteUser.FirstName + " " + athleteUser.LastName).Trim(),
+                branch == null ? null : branch.Name,
+                profile.PhoneNumber))
+            .ToListAsync(CancellationToken.None);
+
+    private IEnumerable<UserRow> FilteredUsers() =>
+        string.IsNullOrWhiteSpace(searchText)
+            ? users
+            : users.Where(x =>
+                Contains(x.FullName, searchText) ||
+                Contains(x.Email, searchText) ||
+                Contains(x.PhoneNumber, searchText));
+
+    private string DetailUrl(Guid id) => IsParentPage ? $"/admin/parents/{id}" : $"/admin/coaches/{id}";
+
+    private static bool Contains(string? value, string query) =>
+        value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
+
+    private static string DisplayName(UserRow user) =>
+        string.IsNullOrWhiteSpace(user.FullName) ? "İsimsiz hesap" : user.FullName;
+
+    private static string DisplayValue(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "Girilmemiş" : value;
+
+    private static string Initials(string name)
+    {
+        var parts = (string.IsNullOrWhiteSpace(name) ? "Hesap" : name).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Take(2).Select(x => x[0])).ToUpperInvariant();
+    }
+
+    private static string PhotoUrl(string path) =>
+        path.StartsWith("/", StringComparison.Ordinal) ? path : $"/{path.Replace('\\', '/')}";
+
+    private sealed record UserRow(
+        Guid Id,
+        string FullName,
+        string Email,
+        string? PhoneNumber,
+        bool EmailConfirmed,
+        bool IsActive,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? LastLoginAt,
+        string? PhotoPath,
+        int LinkedAthleteCount);
+
+    private sealed record LinkedAthleteRow(Guid Id, string FullName, string? BranchName, string? PhoneNumber);
+}

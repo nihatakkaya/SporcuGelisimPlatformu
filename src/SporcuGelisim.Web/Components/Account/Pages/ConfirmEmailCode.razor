@@ -41,6 +41,28 @@
 
     <div class="email-change-panel mt-4">
         <div class="section-title-row">
+            <h2 class="h4">Kod gelmedi mi?</h2>
+        </div>
+        <p class="form-help">E-posta adresinizi girerek yeni bir 6 haneli onay kodu isteyebilirsiniz.</p>
+
+        <EditForm Model="ResendInput" method="post" OnValidSubmit="ResendCodeAsync" FormName="confirm-email-resend-code">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="alert alert-danger" role="alert" />
+
+            <div class="account-form-grid">
+                <div>
+                    <label for="ResendInput.Email" class="form-label">E-posta</label>
+                    <InputText @bind-Value="ResendInput.Email" id="ResendInput.Email" class="form-control" autocomplete="username" />
+                    <ValidationMessage For="() => ResendInput.Email" class="text-danger" />
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-outline-secondary mt-4">Onay Kodunu Tekrar Gönder</button>
+        </EditForm>
+    </div>
+
+    <div class="email-change-panel mt-4">
+        <div class="section-title-row">
             <h2 class="h4">E-postaya ulaşamıyorum</h2>
         </div>
         <p class="form-help">E-posta yanlış girildiyse mevcut e-posta ve şifrenizi yazarak yeni adrese onay kodu gönderebilirsiniz.</p>
@@ -84,14 +106,19 @@
     [SupplyParameterFromForm(FormName = "confirm-email-change-address")]
     private ChangeEmailInputModel ChangeEmailInput { get; set; } = default!;
 
+    [SupplyParameterFromForm(FormName = "confirm-email-resend-code")]
+    private ResendInputModel ResendInput { get; set; } = default!;
+
     protected override void OnInitialized()
     {
         Input ??= new();
         ChangeEmailInput ??= new();
+        ResendInput ??= new();
         if (!string.IsNullOrWhiteSpace(Email))
         {
             Input.Email = Email;
             ChangeEmailInput.CurrentEmail = Email;
+            ResendInput.Email = Email;
         }
     }
 
@@ -133,6 +160,43 @@
             EmailConfirmationCodeStore.LoginProvider,
             EmailConfirmationCodeStore.TokenName);
         RedirectManager.RedirectTo("/Account/Login", new() { ["confirmed"] = "1" });
+    }
+
+    private async Task ResendCodeAsync()
+    {
+        var email = ResendInput.Email.Trim();
+        var user = await UserManager.FindByEmailAsync(email);
+        if (user is null)
+        {
+            message = "Hata: Kullanıcı bulunamadı.";
+            return;
+        }
+
+        if (await UserManager.IsEmailConfirmedAsync(user))
+        {
+            message = "Hata: Bu e-posta zaten onaylanmış.";
+            return;
+        }
+
+        var code = EmailConfirmationCodeStore.GenerateCode();
+        await UserManager.SetAuthenticationTokenAsync(
+            user,
+            EmailConfirmationCodeStore.LoginProvider,
+            EmailConfirmationCodeStore.TokenName,
+            EmailConfirmationCodeStore.CreateTokenValue(user.Id, code, DateTimeOffset.UtcNow));
+        try
+        {
+            await AccountEmailSender.SendEmailConfirmationCodeAsync(user, email, code);
+        }
+        catch (AccountEmailSendException exception)
+        {
+            message = $"Hata: {exception.Message}";
+            return;
+        }
+
+        Input.Email = email;
+        ChangeEmailInput.CurrentEmail = email;
+        message = "Başarılı: Yeni onay kodu e-posta adresinize gönderildi.";
     }
 
     private async Task ChangeEmailAsync()
@@ -233,5 +297,12 @@
         [Required(ErrorMessage = "Yeni e-posta zorunludur.")]
         [EmailAddress(ErrorMessage = "Geçerli bir e-posta adresi girin.")]
         public string NewEmail { get; set; } = "";
+    }
+
+    private sealed class ResendInputModel
+    {
+        [Required(ErrorMessage = "E-posta zorunludur.")]
+        [EmailAddress(ErrorMessage = "Geçerli bir e-posta adresi girin.")]
+        public string Email { get; set; } = "";
     }
 }

@@ -9,6 +9,7 @@ public interface IAccountEmailSender
 {
     Task SendEmailConfirmationCodeAsync(ApplicationUser user, string email, string code);
     Task SendEmailChangeCodeAsync(ApplicationUser user, string email, string code);
+    Task SendTemporaryPasswordAsync(ApplicationUser user, string email, string temporaryPassword);
 }
 
 public sealed class AccountEmailSendException(string message, Exception? innerException = null)
@@ -48,6 +49,18 @@ internal sealed class AccountEmailSender(IConfiguration configuration, ILogger<A
             E-posta adresinizi bu adrese taşımak için kodunuz: {code}
 
             Bu kod 30 dakika geçerlidir.
+            """);
+
+    public Task SendTemporaryPasswordAsync(ApplicationUser user, string email, string temporaryPassword) =>
+        SendEmailAsync(
+            email,
+            "Sporcu Gelişim Platformu geçici şifre",
+            $"""
+            Merhaba {user.FullName},
+
+            Hesabınız için yeni geçici şifre oluşturuldu: {temporaryPassword}
+
+            Bu şifreyle giriş yaptıktan sonra Hesabım ekranından kendi şifrenizi belirleyebilirsiniz.
             """);
 
     private async Task SendEmailAsync(string to, string subject, string body)

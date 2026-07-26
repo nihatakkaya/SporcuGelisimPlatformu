@@ -60,3 +60,7 @@ Kritik kurallar:
 - `Hesabım` ekranında kullanıcı adı ve e-posta aynı değer olarak yinelenmemeli; hesap bilgileri bölümünde ad soyad ve mevcut e-posta ayrı gösterilmelidir.
 - Kullanıcı `Hesabım` ekranından yeni e-posta adresine 6 haneli onay kodu göndererek e-posta adresini değiştirebilmelidir.
 - E-posta onay ekranında yanlış girilmiş e-posta adresine erişemeyen kullanıcı, mevcut e-posta ve şifresini doğrulayıp yeni e-posta adresine onay kodu gönderebilmelidir.
+- E-posta onay kodu gelmeyen kullanıcı, onay ekranından aynı e-posta için yeni 6 haneli kod isteyebilmelidir.
+- Giriş ekranında bağımsız `E-posta onayı` bağlantısı gösterilmemeli; e-posta onayı yalnızca onay bekleyen kullanıcı giriş yaptığında veya kayıt sonrası yönlendirme ile açılmalıdır.
+- `Şifremi unuttum` ekranı tamamen Türkçe olmalı; kullanıcı e-posta adresini girdiğinde sisteme kayıtlıysa yeni geçici şifre bu adrese gönderilmeli ve hesap şifresi bu geçici şifre olarak güncellenmelidir.
+- Admin, sporcular listesine ek olarak antrenör ve ebeveyn hesaplarını alfabetik arama listesiyle görüntüleyebilmeli; seçilen hesabın temel bilgileri ve aktif bağlı sporcuları gösterilmelidir.
