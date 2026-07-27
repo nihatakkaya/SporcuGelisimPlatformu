@@ -292,12 +292,19 @@ else
     private async Task SetRoleFilterAsync(string? roleName)
     {
         roleFilter = roleName;
+        users = await LoadUsersAsync();
         selectedUser = users.FirstOrDefault();
         if (selectedUser is not null)
         {
             accountInput.NewEmail = selectedUser.Email;
             linkedAthletes = await LoadLinkedAthletesAsync(selectedUser.Id);
             relationHistory = await LoadRelationHistoryAsync(selectedUser.Id);
+        }
+        else
+        {
+            accountInput.NewEmail = "";
+            linkedAthletes = [];
+            relationHistory = [];
         }
     }
 

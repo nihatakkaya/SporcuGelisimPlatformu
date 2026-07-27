@@ -1145,6 +1145,56 @@ a,
     gap: 12px;
 }
 
+.feedback-user-layout {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: 280px minmax(0, 1fr);
+}
+
+.feedback-user-panel {
+    border: 1px solid #e4ebf2;
+    border-radius: 8px;
+    background: #fbfcfe;
+    padding: 14px;
+}
+
+.feedback-user-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.feedback-user-item {
+    border: 1px solid #dfe8ef;
+    border-radius: 8px;
+    background: #fff;
+    color: inherit;
+    padding: 11px 12px;
+    text-align: left;
+}
+
+.feedback-user-item.selected,
+.feedback-user-item:hover {
+    border-color: var(--school-green);
+    background: #f5fbf7;
+}
+
+.feedback-user-item strong,
+.feedback-user-item span {
+    display: block;
+}
+
+.feedback-user-item strong {
+    color: var(--school-blue-dark);
+    font-weight: 900;
+}
+
+.feedback-user-item span {
+    color: #667582;
+    font-size: 0.86rem;
+    margin-top: 3px;
+}
+
 .feedback-athlete-group {
     border: 1px solid #e4ebf2;
     border-radius: 8px;

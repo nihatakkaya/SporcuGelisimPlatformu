@@ -71,3 +71,6 @@ Kritik kurallar:
 - Admin ve Antrenör ekranlarında sporcu ilişkilerinin aktif/pasif geçmişi; ilişki türü, başlangıç ve bitiş tarihleriyle görüntülenebilmelidir.
 - Üst menü ve ana sayfa, okunmamış geri bildirimleri ve bekleyen kelime isteklerini küçük yeşil bildirim rozetleriyle göstermelidir.
 - Counter ve Weather gibi örnek scaffold sayfaları uygulama rotalarından kaldırılmalı; kullanılmayan Identity harici giriş, passkey, 2FA ve kişisel veri silme ekranları Türkçe kontrollü bilgilendirme ekranı olarak kalmalıdır.
+- Admin kullanıcı yönetimi ekranındaki rol filtreleri listeyi gerçekten yeniden yüklemeli; üst menüde ayrı Sporcular, Antrenörler ve Ebeveynler bağlantıları yerine Admin için tek Kullanıcılar bağlantısı kullanılmalıdır.
+- Admin geri bildirim ekranında kullanıcı arama/listesi bulunmalı; seçilen kullanıcıya ait geri bildirimler sporcu bazlı akordiyon olarak görüntülenmelidir.
+- Ebeveyn geri bildirim ekranında mesajlar sporcu bazlı akordiyon olarak görüntülenmeli ve sayfaya girildiğinde ebeveyne gelen okunmamış geri bildirimler okunmuş sayılmalıdır.

@@ -112,60 +112,39 @@
 <section class="content-card p-4 mt-4">
     <div class="section-title-row">
         <h2 class="h4">Mesajlar</h2>
-        <span>@feedbackRows.Count kayıt</span>
+        <span>@DisplayedFeedbackRows.Count kayıt</span>
     </div>
 
-    @if (feedbackRows.Count == 0)
+    @if (isAdmin)
     {
-        <div class="dashboard-empty">
-            <strong>Henüz geri bildirim yok.</strong>
-            <p>Mesaj gönderildiğinde veya size mesaj geldiğinde burada görüntülenir.</p>
-        </div>
-    }
-    else if (isCoach)
-    {
-        <div class="feedback-accordion-list">
-            @foreach (var group in feedbackGroups)
-            {
-                <details class="feedback-athlete-group">
-                    <summary @onclick="() => MarkFeedbackGroupReadAsync(group.AthleteProfileId)">
-                        <span>
-                            <strong>@group.AthleteName</strong>
-                            <small>@group.Feedbacks.Count mesaj</small>
-                        </span>
-                        @if (group.UnreadCount > 0)
-                        {
-                            <span class="unread-feedback-badge">@group.UnreadCount yeni</span>
-                        }
-                    </summary>
+        <div class="feedback-user-layout">
+            <aside class="feedback-user-panel">
+                <label class="form-label" for="FeedbackUserSearch">Kullanıcı ara</label>
+                <input id="FeedbackUserSearch" class="form-control" @bind="feedbackUserSearch" @bind:event="oninput" placeholder="Ad, e-posta veya rol" />
 
-                    <div class="compact-list feedback-message-list">
-                        @foreach (var row in group.Feedbacks)
-                        {
-                            <div class="@(row.IsUnread ? "feedback-message-unread" : null)">
-                                <strong>@row.Date.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</strong>
-                                <span>@row.AuthorName -> @row.RecipientName</span>
-                                <span>@row.Comment</span>
-                            </div>
-                        }
-                    </div>
-                </details>
-            }
+                <div class="feedback-user-list">
+                    <button class="feedback-user-item @(selectedFeedbackUserId is null ? "selected" : null)" type="button" @onclick="() => SelectFeedbackUser(null)">
+                        <strong>Tüm kullanıcılar</strong>
+                        <span>@feedbackRows.Count mesaj</span>
+                    </button>
+                    @foreach (var user in FilteredFeedbackUsers())
+                    {
+                        <button class="feedback-user-item @(selectedFeedbackUserId == user.Id ? "selected" : null)" type="button" @onclick="() => SelectFeedbackUser(user.Id)">
+                            <strong>@user.Name</strong>
+                            <span>@user.RoleLabel - @user.MessageCount mesaj</span>
+                        </button>
+                    }
+                </div>
+            </aside>
+
+            <div>
+                @FeedbackAccordion()
+            </div>
         </div>
     }
     else
     {
-        <div class="compact-list">
-            @foreach (var row in feedbackRows)
-            {
-                <div>
-                    <strong>@row.AthleteName</strong>
-                    <span>@row.AuthorName -> @row.RecipientName</span>
-                    <span>@row.Date.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span>
-                    <span>@row.Comment</span>
-                </div>
-            }
-        </div>
+        @FeedbackAccordion()
     }
 </section>
 
@@ -174,16 +153,102 @@
     private IReadOnlyList<CoachContactOption> coaches = [];
     private IReadOnlyList<RelatedFeedbackTarget> relatedTargets = [];
     private IReadOnlyList<FeedbackRow> feedbackRows = [];
+    private IReadOnlyList<FeedbackUserRow> feedbackUsers = [];
     private IReadOnlyList<FeedbackGroup> feedbackGroups = [];
+    private Guid? selectedFeedbackUserId;
+    private bool isAdmin;
     private bool isCoach;
     private bool isParent;
+    private string? feedbackUserSearch;
     private string? message;
+
+    private IReadOnlyList<FeedbackRow> DisplayedFeedbackRows =>
+        selectedFeedbackUserId is null
+            ? feedbackRows
+            : feedbackRows.Where(x =>
+                x.AuthorUserId == selectedFeedbackUserId ||
+                x.RecipientUserId == selectedFeedbackUserId ||
+                x.AthleteUserId == selectedFeedbackUserId).ToList();
 
     protected override async Task OnInitializedAsync()
     {
         SetStatusMessage();
         await LoadAsync();
+        if (isParent)
+        {
+            await MarkAllVisibleUnreadReadAsync();
+        }
     }
+
+    private RenderFragment FeedbackAccordion() => builder =>
+    {
+        BuildFeedbackGroups();
+        if (DisplayedFeedbackRows.Count == 0)
+        {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "dashboard-empty");
+            builder.OpenElement(2, "strong");
+            builder.AddContent(3, "Henüz geri bildirim yok.");
+            builder.CloseElement();
+            builder.OpenElement(4, "p");
+            builder.AddContent(5, "Mesaj gönderildiğinde veya size mesaj geldiğinde burada görüntülenir.");
+            builder.CloseElement();
+            builder.CloseElement();
+            return;
+        }
+
+        builder.OpenElement(6, "div");
+        builder.AddAttribute(7, "class", "feedback-accordion-list");
+        var sequence = 8;
+        foreach (var group in feedbackGroups)
+        {
+            builder.OpenElement(sequence++, "details");
+            builder.AddAttribute(sequence++, "class", "feedback-athlete-group");
+
+            builder.OpenElement(sequence++, "summary");
+            builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => MarkFeedbackGroupReadAsync(group.AthleteProfileId)));
+            builder.OpenElement(sequence++, "span");
+            builder.OpenElement(sequence++, "strong");
+            builder.AddContent(sequence++, group.AthleteName);
+            builder.CloseElement();
+            builder.OpenElement(sequence++, "small");
+            builder.AddContent(sequence++, $"{group.Feedbacks.Count} mesaj");
+            builder.CloseElement();
+            builder.CloseElement();
+            if (group.UnreadCount > 0)
+            {
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", "unread-feedback-badge");
+                builder.AddContent(sequence++, $"{group.UnreadCount} yeni");
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+
+            builder.OpenElement(sequence++, "div");
+            builder.AddAttribute(sequence++, "class", "compact-list feedback-message-list");
+            foreach (var row in group.Feedbacks)
+            {
+                builder.OpenElement(sequence++, "div");
+                if (row.IsUnread)
+                {
+                    builder.AddAttribute(sequence++, "class", "feedback-message-unread");
+                }
+                builder.OpenElement(sequence++, "strong");
+                builder.AddContent(sequence++, row.Date.ToLocalTime().ToString("dd.MM.yyyy HH:mm"));
+                builder.CloseElement();
+                builder.OpenElement(sequence++, "span");
+                builder.AddContent(sequence++, $"{row.AuthorName} -> {row.RecipientName}");
+                builder.CloseElement();
+                builder.OpenElement(sequence++, "span");
+                builder.AddContent(sequence++, row.Comment);
+                builder.CloseElement();
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
 
     private void SetStatusMessage()
     {
@@ -206,6 +271,7 @@
         }
 
         var currentUserId = CurrentUser.UserId.Value;
+        isAdmin = CurrentUser.Roles.Contains(RoleNames.Admin);
         isCoach = CurrentUser.Roles.Contains(RoleNames.Coach);
         isParent = CurrentUser.Roles.Contains(RoleNames.Parent);
 
@@ -238,7 +304,6 @@
             relatedTargets = await LoadRelatedTargetsAsync(currentUserId, isCoach);
         }
 
-        var isAdmin = CurrentUser.Roles.Contains(RoleNames.Admin);
         feedbackRows = await (
             from feedback in Db.Feedbacks.AsNoTracking()
             join profile in Db.AthleteProfiles.AsNoTracking() on feedback.AthleteProfileId equals profile.Id
@@ -253,20 +318,54 @@
             select new FeedbackRow(
                 feedback.Id,
                 feedback.AthleteProfileId,
+                profile.UserId,
                 (athleteUser.FirstName + " " + athleteUser.LastName).Trim(),
+                feedback.AuthorUserId,
                 (authorUser.FirstName + " " + authorUser.LastName).Trim(),
+                feedback.RecipientUserId,
                 recipient == null ? "Genel" : (recipient.FirstName + " " + recipient.LastName).Trim(),
                 feedback.FeedbackDate,
                 feedback.Comment,
                 feedback.RecipientUserId == currentUserId && feedback.RecipientViewedAt == null))
             .ToListAsync(CancellationToken.None);
 
+        BuildFeedbackUsers();
         BuildFeedbackGroups();
+    }
+
+    private void BuildFeedbackUsers()
+    {
+        if (!isAdmin)
+        {
+            feedbackUsers = [];
+            return;
+        }
+
+        feedbackUsers = feedbackRows
+            .SelectMany(row => new[]
+            {
+                new FeedbackUserSeed(row.AthleteUserId, row.AthleteName, "Sporcu"),
+                new FeedbackUserSeed(row.AuthorUserId, row.AuthorName, "Gönderen"),
+                row.RecipientUserId.HasValue ? new FeedbackUserSeed(row.RecipientUserId.Value, row.RecipientName, "Alıcı") : null
+            })
+            .Where(x => x is not null)
+            .Select(x => x!)
+            .GroupBy(x => x.Id)
+            .Select(group => new FeedbackUserRow(
+                group.Key,
+                string.IsNullOrWhiteSpace(group.First().Name) ? "İsimsiz kullanıcı" : group.First().Name,
+                group.First().RoleLabel,
+                feedbackRows.Count(row =>
+                    row.AthleteUserId == group.Key ||
+                    row.AuthorUserId == group.Key ||
+                    row.RecipientUserId == group.Key)))
+            .OrderBy(x => x.Name)
+            .ToList();
     }
 
     private void BuildFeedbackGroups()
     {
-        feedbackGroups = feedbackRows
+        feedbackGroups = DisplayedFeedbackRows
             .GroupBy(x => new { x.AthleteProfileId, x.AthleteName })
             .Select(x => new FeedbackGroup(
                 x.Key.AthleteProfileId,
@@ -276,6 +375,48 @@
             .OrderByDescending(x => x.UnreadCount)
             .ThenBy(x => x.AthleteName)
             .ToList();
+    }
+
+    private void SelectFeedbackUser(Guid? userId)
+    {
+        selectedFeedbackUserId = userId;
+        BuildFeedbackGroups();
+    }
+
+    private IEnumerable<FeedbackUserRow> FilteredFeedbackUsers() =>
+        string.IsNullOrWhiteSpace(feedbackUserSearch)
+            ? feedbackUsers
+            : feedbackUsers.Where(x =>
+                Contains(x.Name, feedbackUserSearch) ||
+                Contains(x.RoleLabel, feedbackUserSearch));
+
+    private async Task MarkAllVisibleUnreadReadAsync()
+    {
+        if (CurrentUser.UserId is null)
+        {
+            return;
+        }
+
+        var currentUserId = CurrentUser.UserId.Value;
+        var unreadFeedbacks = await Db.Feedbacks
+            .Where(x => x.RecipientUserId == currentUserId && x.RecipientViewedAt == null)
+            .ToListAsync(CancellationToken.None);
+
+        if (unreadFeedbacks.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var feedback in unreadFeedbacks)
+        {
+            feedback.RecipientViewedAt = now;
+            feedback.UpdatedAt = now;
+        }
+
+        await Db.SaveChangesAsync(CancellationToken.None);
+        feedbackRows = feedbackRows.Select(row => row.IsUnread ? row with { IsUnread = false } : row).ToList();
+        BuildFeedbackGroups();
     }
 
     private async Task MarkFeedbackGroupReadAsync(Guid athleteProfileId)
@@ -338,6 +479,9 @@
             .ToListAsync(CancellationToken.None);
     }
 
+    private static bool Contains(string? value, string query) =>
+        value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
+
     private static string DisplayPhone(string? value) =>
         string.IsNullOrWhiteSpace(value) ? "Telefon girilmemiş" : value;
 
@@ -352,6 +496,8 @@
 
     private sealed record CoachContactOption(Guid Id, string Name, string? PhoneNumber, string? PhotoPath);
     private sealed record RelatedFeedbackTarget(Guid AthleteProfileId, string AthleteName, Guid RecipientUserId, string RecipientName);
-    private sealed record FeedbackRow(Guid Id, Guid AthleteProfileId, string AthleteName, string AuthorName, string RecipientName, DateTimeOffset Date, string Comment, bool IsUnread);
+    private sealed record FeedbackRow(Guid Id, Guid AthleteProfileId, Guid AthleteUserId, string AthleteName, Guid AuthorUserId, string AuthorName, Guid? RecipientUserId, string RecipientName, DateTimeOffset Date, string Comment, bool IsUnread);
     private sealed record FeedbackGroup(Guid AthleteProfileId, string AthleteName, IReadOnlyList<FeedbackRow> Feedbacks, int UnreadCount);
+    private sealed record FeedbackUserSeed(Guid Id, string Name, string RoleLabel);
+    private sealed record FeedbackUserRow(Guid Id, string Name, string RoleLabel, int MessageCount);
 }
