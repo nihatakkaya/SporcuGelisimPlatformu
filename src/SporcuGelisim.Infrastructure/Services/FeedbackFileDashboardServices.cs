@@ -226,3 +226,31 @@ public sealed class DashboardService(ApplicationDbContext db) : IDashboardServic
         return builder.ToString();
     }
 }
+
+public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> dbContextFactory, ICurrentUserService currentUser) : INotificationService
+{
+    public async Task<NotificationSummaryDto> GetSummaryAsync(CancellationToken cancellationToken)
+    {
+        if (currentUser.UserId is null)
+        {
+            return new NotificationSummaryDto(0, 0);
+        }
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var userId = currentUser.UserId.Value;
+        var unreadFeedbackCount = await db.Feedbacks.AsNoTracking()
+            .CountAsync(x => x.RecipientUserId == userId && x.RecipientViewedAt == null, cancellationToken);
+
+        var pendingWordRequestQuery = db.AthleteWordRequests.AsNoTracking()
+            .Where(x => x.Status == SporcuGelisim.Domain.Enums.WordRequestStatus.Pending);
+        if (!currentUser.Roles.Contains(RoleNames.Admin))
+        {
+            pendingWordRequestQuery = currentUser.Roles.Contains(RoleNames.Coach)
+                ? pendingWordRequestQuery.Where(x => x.TargetCoachUserId == userId)
+                : pendingWordRequestQuery.Where(x => false);
+        }
+
+        var pendingWordRequestCount = await pendingWordRequestQuery.CountAsync(cancellationToken);
+        return new NotificationSummaryDto(unreadFeedbackCount, pendingWordRequestCount);
+    }
+}

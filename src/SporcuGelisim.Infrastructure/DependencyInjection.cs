@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<IFileStorageService, FileStorageService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<INotificationService, NotificationService>();
 
         return services;
     }

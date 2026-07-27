@@ -1,3 +1,5 @@
+@page "/admin/users"
+@page "/admin/users/{SelectedUserId:guid}"
 @page "/admin/coaches"
 @page "/admin/coaches/{SelectedUserId:guid}"
 @page "/admin/parents"
@@ -6,16 +8,20 @@
 @attribute [Authorize(Roles = RoleNames.Admin)]
 @implements IDisposable
 
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Cryptography
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using SporcuGelisim.Domain.Enums
 @using SporcuGelisim.Infrastructure.Data
 @using SporcuGelisim.Infrastructure.Identity
+@using SporcuGelisim.Web.Components.Account
 
 @inject UserManager<ApplicationUser> UserManager
 @inject ApplicationDbContext Db
 @inject NavigationManager Navigation
+@inject IAccountEmailSender AccountEmailSender
 
 <PageTitle>@PageTitleText</PageTitle>
 
@@ -30,6 +36,21 @@
         <strong>@users.Count</strong>
     </div>
 </section>
+
+<StatusMessage Message="@message" />
+
+@if (IsUsersPage)
+{
+    <section class="content-card p-3 mb-3">
+        <div class="admin-filter-row" aria-label="Rol filtresi">
+            <button class="btn @RoleFilterButtonClass(null)" type="button" @onclick="() => SetRoleFilterAsync(null)">Tümü</button>
+            <button class="btn @RoleFilterButtonClass(RoleNames.Admin)" type="button" @onclick="() => SetRoleFilterAsync(RoleNames.Admin)">Admin</button>
+            <button class="btn @RoleFilterButtonClass(RoleNames.Coach)" type="button" @onclick="() => SetRoleFilterAsync(RoleNames.Coach)">Antrenör</button>
+            <button class="btn @RoleFilterButtonClass(RoleNames.Athlete)" type="button" @onclick="() => SetRoleFilterAsync(RoleNames.Athlete)">Sporcu</button>
+            <button class="btn @RoleFilterButtonClass(RoleNames.Parent)" type="button" @onclick="() => SetRoleFilterAsync(RoleNames.Parent)">Ebeveyn</button>
+        </div>
+    </section>
+}
 
 @if (isLoading)
 {
@@ -53,7 +74,7 @@ else
         <aside class="athlete-list-panel">
             <div class="list-toolbar">
                 <label for="UserSearch">@SearchLabel</label>
-                <input id="UserSearch" class="form-control" @bind="searchText" @bind:event="oninput" placeholder="Ad, e-posta veya telefon" />
+                <input id="UserSearch" class="form-control" @bind="searchText" @bind:event="oninput" placeholder="Ad, e-posta, rol veya telefon" />
             </div>
 
             <div class="athlete-list">
@@ -62,15 +83,15 @@ else
                     <a class="athlete-list-item @(selectedUser?.Id == row.Id ? "selected" : null)" href="@DetailUrl(row.Id)">
                         @if (!string.IsNullOrWhiteSpace(row.PhotoPath))
                         {
-                            <img class="athlete-avatar-image" src="@PhotoUrl(row.PhotoPath)" alt="@row.FullName" />
+                            <img class="athlete-avatar-image" src="@PhotoUrl(row.PhotoPath)" alt="@DisplayName(row)" />
                         }
                         else
                         {
-                            <span class="athlete-avatar">@Initials(row.FullName)</span>
+                            <span class="athlete-avatar">@Initials(DisplayName(row))</span>
                         }
                         <span>
                             <strong>@DisplayName(row)</strong>
-                            <small>@row.Email</small>
+                            <small>@row.RoleLabels - @row.Email</small>
                         </span>
                     </a>
                 }
@@ -90,14 +111,14 @@ else
                 <div class="athlete-profile-top">
                     @if (!string.IsNullOrWhiteSpace(selectedUser.PhotoPath))
                     {
-                        <img src="@PhotoUrl(selectedUser.PhotoPath)" alt="@selectedUser.FullName" />
+                        <img src="@PhotoUrl(selectedUser.PhotoPath)" alt="@DisplayName(selectedUser)" />
                     }
                     else
                     {
-                        <div class="athlete-photo-placeholder">@Initials(selectedUser.FullName)</div>
+                        <div class="athlete-photo-placeholder">@Initials(DisplayName(selectedUser))</div>
                     }
                     <div>
-                        <p class="dashboard-kicker">@RoleLabel</p>
+                        <p class="dashboard-kicker">@selectedUser.RoleLabels</p>
                         <h2>@DisplayName(selectedUser)</h2>
                         <p>@selectedUser.Email</p>
                     </div>
@@ -111,6 +132,35 @@ else
                     <div><span>Son giriş</span><strong>@(selectedUser.LastLoginAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "Henüz yok")</strong></div>
                     <div><span>Bağlı sporcu</span><strong>@linkedAthletes.Count</strong></div>
                 </div>
+
+                <section class="admin-account-actions">
+                    <div class="section-title-row">
+                        <h3>Hesap işlemleri</h3>
+                        <span>Admin yönetimi</span>
+                    </div>
+
+                    <div class="admin-action-grid">
+                        <button class="btn @(selectedUser.IsActive ? "btn-outline-danger" : "btn-primary")" type="button" @onclick="ToggleActiveAsync">
+                            @(selectedUser.IsActive ? "Hesabı pasife al" : "Hesabı aktifleştir")
+                        </button>
+                        <button class="btn btn-outline-primary" type="button" @onclick="ResendEmailCodeAsync" disabled="@string.IsNullOrWhiteSpace(selectedUser.Email)">
+                            Onay kodu gönder
+                        </button>
+                        <button class="btn btn-outline-secondary" type="button" @onclick="SendTemporaryPasswordAsync" disabled="@string.IsNullOrWhiteSpace(selectedUser.Email)">
+                            Geçici şifre gönder
+                        </button>
+                    </div>
+
+                    <EditForm Model="accountInput" FormName="admin-user-email-change" OnValidSubmit="ChangeEmailAsync" class="admin-email-form">
+                        <DataAnnotationsValidator />
+                        <div>
+                            <label class="form-label" for="AdminNewEmail">E-posta düzelt</label>
+                            <InputText id="AdminNewEmail" class="form-control" @bind-Value="accountInput.NewEmail" autocomplete="email" />
+                            <ValidationMessage For="() => accountInput.NewEmail" class="text-danger" />
+                        </div>
+                        <button class="btn btn-primary" type="submit">E-postayı güncelle ve kod gönder</button>
+                    </EditForm>
+                </section>
 
                 <div class="detail-sections">
                     <section class="wide-section">
@@ -136,6 +186,34 @@ else
                             </div>
                         }
                     </section>
+
+                    <section class="wide-section">
+                        <div class="section-title-row">
+                            <h3>İlişki geçmişi</h3>
+                            <span>@relationHistory.Count kayıt</span>
+                        </div>
+
+                        @if (relationHistory.Count == 0)
+                        {
+                            <p class="muted-line">Bu hesap için ilişki geçmişi yok.</p>
+                        }
+                        else
+                        {
+                            <div class="relation-history-list">
+                                @foreach (var relation in relationHistory)
+                                {
+                                    <article class="relation-history-item @(relation.IsActive ? "active" : "passive")">
+                                        <span class="status-pill @(relation.IsActive ? "active" : "passive")">@(relation.IsActive ? "Aktif" : "Pasif")</span>
+                                        <div>
+                                            <strong>@relation.AthleteName</strong>
+                                            <span>@RelationTypeText(relation.RelationType): @relation.RelatedUserName</span>
+                                            <small>@relation.StartDate.ToLocalTime().ToString("dd.MM.yyyy HH:mm") - @(relation.EndDate?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "Devam ediyor")</small>
+                                        </div>
+                                    </article>
+                                }
+                            </div>
+                        }
+                    </section>
                 </div>
             }
         </article>
@@ -148,28 +226,37 @@ else
 
     private IReadOnlyList<UserRow> users = [];
     private IReadOnlyList<LinkedAthleteRow> linkedAthletes = [];
+    private IReadOnlyList<RelationHistoryRow> relationHistory = [];
     private UserRow? selectedUser;
+    private AdminActionInput accountInput = new();
     private bool isLoading = true;
     private string? searchText;
+    private string? roleFilter;
     private string currentSection = "";
+    private string? message;
     private bool disposed;
 
     private bool IsParentPage => currentSection == "parents";
-    private string RoleName => IsParentPage ? RoleNames.Parent : RoleNames.Coach;
-    private AthleteRelationType RelationType => IsParentPage ? AthleteRelationType.Parent : AthleteRelationType.Coach;
-    private string RoleLabel => IsParentPage ? "Ebeveyn" : "Antrenör";
-    private string PageTitleText => IsParentPage ? "Ebeveynler" : "Antrenörler";
+    private bool IsCoachPage => currentSection == "coaches";
+    private bool IsUsersPage => currentSection == "users";
+    private string? FixedRoleName => IsParentPage ? RoleNames.Parent : IsCoachPage ? RoleNames.Coach : null;
+    private AthleteRelationType? FixedRelationType => IsParentPage ? AthleteRelationType.Parent : IsCoachPage ? AthleteRelationType.Coach : null;
+    private string PageTitleText => IsParentPage ? "Ebeveynler" : IsCoachPage ? "Antrenörler" : "Kullanıcı Yönetimi";
     private string PageDescription => IsParentPage
         ? "Ebeveyn hesaplarını alfabetik sırada görüntüleyin ve eşleştirildiği sporcuları kontrol edin."
-        : "Antrenör hesaplarını alfabetik sırada görüntüleyin ve sorumlu olduğu sporcuları kontrol edin.";
-    private string LoadingText => IsParentPage ? "Ebeveynler yükleniyor..." : "Antrenörler yükleniyor...";
-    private string EmptyTitle => IsParentPage ? "Gösterilecek ebeveyn yok." : "Gösterilecek antrenör yok.";
-    private string SelectTitle => IsParentPage ? "Ebeveyn seçin." : "Antrenör seçin.";
-    private string SearchLabel => IsParentPage ? "Ebeveyn ara" : "Antrenör ara";
-    private string LinkedAthletesTitle => IsParentPage ? "Eşleştirildiği sporcular" : "Sorumlu olduğu sporcular";
+        : IsCoachPage
+            ? "Antrenör hesaplarını alfabetik sırada görüntüleyin ve sorumlu olduğu sporcuları kontrol edin."
+            : "Tüm hesapları rol, durum ve e-posta onayı bilgileriyle yönetin.";
+    private string LoadingText => IsParentPage ? "Ebeveynler yükleniyor..." : IsCoachPage ? "Antrenörler yükleniyor..." : "Kullanıcılar yükleniyor...";
+    private string EmptyTitle => IsParentPage ? "Gösterilecek ebeveyn yok." : IsCoachPage ? "Gösterilecek antrenör yok." : "Gösterilecek kullanıcı yok.";
+    private string SelectTitle => IsParentPage ? "Ebeveyn seçin." : IsCoachPage ? "Antrenör seçin." : "Kullanıcı seçin.";
+    private string SearchLabel => IsParentPage ? "Ebeveyn ara" : IsCoachPage ? "Antrenör ara" : "Kullanıcı ara";
+    private string LinkedAthletesTitle => IsParentPage ? "Eşleştirildiği sporcular" : IsCoachPage ? "Sorumlu olduğu sporcular" : "Aktif bağlı sporcular";
     private string NoLinkedAthletesText => IsParentPage
         ? "Bu ebeveyn hesabına bağlı aktif sporcu yok."
-        : "Bu antrenör hesabına bağlı aktif sporcu yok.";
+        : IsCoachPage
+            ? "Bu antrenör hesabına bağlı aktif sporcu yok."
+            : "Bu hesaba bağlı aktif sporcu yok.";
 
     protected override void OnInitialized()
     {
@@ -193,6 +280,7 @@ else
         await InvokeAsync(async () =>
         {
             searchText = null;
+            roleFilter = null;
             await ReloadAsync(nextSection, ParseSelectedUserId(e.Location));
             if (!disposed)
             {
@@ -201,6 +289,21 @@ else
         });
     }
 
+    private async Task SetRoleFilterAsync(string? roleName)
+    {
+        roleFilter = roleName;
+        selectedUser = users.FirstOrDefault();
+        if (selectedUser is not null)
+        {
+            accountInput.NewEmail = selectedUser.Email;
+            linkedAthletes = await LoadLinkedAthletesAsync(selectedUser.Id);
+            relationHistory = await LoadRelationHistoryAsync(selectedUser.Id);
+        }
+    }
+
+    private string RoleFilterButtonClass(string? roleName) =>
+        string.Equals(roleFilter, roleName, StringComparison.OrdinalIgnoreCase) ? "btn-primary" : "btn-outline-secondary";
+
     private async Task ReloadAsync(string section, Guid? selectedUserId)
     {
         currentSection = section;
@@ -208,64 +311,228 @@ else
         users = await LoadUsersAsync();
         var selectedId = selectedUserId ?? users.FirstOrDefault()?.Id;
         selectedUser = selectedId.HasValue ? users.FirstOrDefault(x => x.Id == selectedId.Value) : null;
+        accountInput.NewEmail = selectedUser?.Email ?? "";
         linkedAthletes = selectedUser is null ? [] : await LoadLinkedAthletesAsync(selectedUser.Id);
+        relationHistory = selectedUser is null ? [] : await LoadRelationHistoryAsync(selectedUser.Id);
         isLoading = false;
     }
 
-    private static string GetSection(string uri)
+    private async Task ToggleActiveAsync()
     {
-        var relativePath = new Uri(uri, UriKind.Absolute).AbsolutePath.Trim('/').ToLowerInvariant();
-        return relativePath.StartsWith("admin/parents", StringComparison.Ordinal) ? "parents" : "coaches";
+        if (selectedUser is null)
+        {
+            return;
+        }
+
+        var user = await UserManager.FindByIdAsync(selectedUser.Id.ToString());
+        if (user is null)
+        {
+            message = "Hata: Kullanıcı bulunamadı.";
+            return;
+        }
+
+        user.IsActive = !user.IsActive;
+        var result = await UserManager.UpdateAsync(user);
+        message = result.Succeeded
+            ? (user.IsActive ? "Başarılı: Hesap aktifleştirildi." : "Başarılı: Hesap pasife alındı.")
+            : $"Hata: {string.Join(", ", result.Errors.Select(x => x.Description))}";
+        await ReloadAsync(currentSection, user.Id);
     }
 
-    private static Guid? ParseSelectedUserId(string uri)
+    private async Task ResendEmailCodeAsync()
     {
-        var segments = new Uri(uri, UriKind.Absolute).AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return segments.Length >= 3 && Guid.TryParse(segments[2], out var id) ? id : null;
+        if (selectedUser is null)
+        {
+            return;
+        }
+
+        var user = await UserManager.FindByIdAsync(selectedUser.Id.ToString());
+        if (user is null || string.IsNullOrWhiteSpace(user.Email))
+        {
+            message = "Hata: Onay kodu gönderilecek e-posta bulunamadı.";
+            return;
+        }
+
+        await SendConfirmationCodeAsync(user, user.Email);
+        message = "Başarılı: Onay kodu e-posta adresine gönderildi.";
+        await ReloadAsync(currentSection, user.Id);
+    }
+
+    private async Task ChangeEmailAsync()
+    {
+        if (selectedUser is null)
+        {
+            return;
+        }
+
+        var newEmail = accountInput.NewEmail.Trim();
+        var user = await UserManager.FindByIdAsync(selectedUser.Id.ToString());
+        if (user is null)
+        {
+            message = "Hata: Kullanıcı bulunamadı.";
+            return;
+        }
+
+        var existingUser = await UserManager.FindByEmailAsync(newEmail);
+        if (existingUser is not null && existingUser.Id != user.Id)
+        {
+            message = "Hata: Bu e-posta adresi başka bir hesapta kullanılıyor.";
+            return;
+        }
+
+        var emailResult = await UserManager.SetEmailAsync(user, newEmail);
+        if (!emailResult.Succeeded)
+        {
+            message = $"Hata: {string.Join(", ", emailResult.Errors.Select(x => x.Description))}";
+            return;
+        }
+
+        var userNameResult = await UserManager.SetUserNameAsync(user, newEmail);
+        if (!userNameResult.Succeeded)
+        {
+            message = $"Hata: {string.Join(", ", userNameResult.Errors.Select(x => x.Description))}";
+            return;
+        }
+
+        user.EmailConfirmed = false;
+        await UserManager.UpdateAsync(user);
+        await SendConfirmationCodeAsync(user, newEmail);
+        message = "Başarılı: E-posta güncellendi ve yeni adrese onay kodu gönderildi.";
+        await ReloadAsync(currentSection, user.Id);
+    }
+
+    private async Task SendTemporaryPasswordAsync()
+    {
+        if (selectedUser is null)
+        {
+            return;
+        }
+
+        var user = await UserManager.FindByIdAsync(selectedUser.Id.ToString());
+        if (user is null || string.IsNullOrWhiteSpace(user.Email))
+        {
+            message = "Hata: Geçici şifre gönderilecek e-posta bulunamadı.";
+            return;
+        }
+
+        var temporaryPassword = GenerateTemporaryPassword();
+        var token = await UserManager.GeneratePasswordResetTokenAsync(user);
+        var result = await UserManager.ResetPasswordAsync(user, token, temporaryPassword);
+        if (!result.Succeeded)
+        {
+            message = $"Hata: {string.Join(", ", result.Errors.Select(x => x.Description))}";
+            return;
+        }
+
+        await AccountEmailSender.SendTemporaryPasswordAsync(user, user.Email, temporaryPassword);
+        message = "Başarılı: Geçici şifre kullanıcının e-posta adresine gönderildi.";
+    }
+
+    private async Task SendConfirmationCodeAsync(ApplicationUser user, string email)
+    {
+        var code = EmailConfirmationCodeStore.GenerateCode();
+        await UserManager.SetAuthenticationTokenAsync(
+            user,
+            EmailConfirmationCodeStore.LoginProvider,
+            EmailConfirmationCodeStore.TokenName,
+            EmailConfirmationCodeStore.CreateTokenValue(user.Id, code, DateTimeOffset.UtcNow));
+        await AccountEmailSender.SendEmailConfirmationCodeAsync(user, email, code);
     }
 
     private async Task<IReadOnlyList<UserRow>> LoadUsersAsync()
     {
-        var roleUsers = await UserManager.GetUsersInRoleAsync(RoleName);
-        var orderedUsers = roleUsers.OrderBy(x => x.FirstName).ThenBy(x => x.LastName).ThenBy(x => x.Email).ToList();
-        var photoIds = orderedUsers.Where(x => x.ProfilePhotoId.HasValue).Select(x => x.ProfilePhotoId!.Value).ToList();
+        var baseUsers = FixedRoleName is null
+            ? await Db.Users.AsNoTracking().OrderBy(x => x.FirstName).ThenBy(x => x.LastName).ThenBy(x => x.Email).ToListAsync(CancellationToken.None)
+            : (await UserManager.GetUsersInRoleAsync(FixedRoleName)).OrderBy(x => x.FirstName).ThenBy(x => x.LastName).ThenBy(x => x.Email).ToList();
+
+        if (IsUsersPage && !string.IsNullOrWhiteSpace(roleFilter))
+        {
+            var roleUsers = await UserManager.GetUsersInRoleAsync(roleFilter);
+            var roleUserIds = roleUsers.Select(x => x.Id).ToHashSet();
+            baseUsers = baseUsers.Where(x => roleUserIds.Contains(x.Id)).ToList();
+        }
+
+        var userIds = baseUsers.Select(x => x.Id).ToList();
+        var photoIds = baseUsers.Where(x => x.ProfilePhotoId.HasValue).Select(x => x.ProfilePhotoId!.Value).ToList();
         var photoPaths = await Db.FileAssets.AsNoTracking()
             .Where(x => photoIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => x.RelativePath, CancellationToken.None);
-        var userIds = orderedUsers.Select(x => x.Id).ToList();
+        var roleMap = await LoadRoleMapAsync(userIds);
         var relationCounts = await Db.AthleteRelations.AsNoTracking()
-            .Where(x => userIds.Contains(x.RelatedUserId) && x.RelationType == RelationType && x.IsActive)
+            .Where(x => userIds.Contains(x.RelatedUserId) && x.IsActive)
             .GroupBy(x => x.RelatedUserId)
             .Select(x => new { UserId = x.Key, Count = x.Count() })
             .ToDictionaryAsync(x => x.UserId, x => x.Count, CancellationToken.None);
 
-        return orderedUsers.Select(user => new UserRow(
-            user.Id,
-            user.FullName,
-            user.Email ?? "",
-            user.PhoneNumber,
-            user.EmailConfirmed,
-            user.IsActive,
-            user.CreatedAt,
-            user.LastLoginAt,
-            user.ProfilePhotoId.HasValue && photoPaths.TryGetValue(user.ProfilePhotoId.Value, out var path) ? path : null,
-            relationCounts.TryGetValue(user.Id, out var count) ? count : 0)).ToList();
+        return baseUsers.Select(user =>
+        {
+            IReadOnlyList<string> roles = roleMap.TryGetValue(user.Id, out var userRoles) ? userRoles : Array.Empty<string>();
+            return new UserRow(
+                user.Id,
+                user.FullName,
+                user.Email ?? "",
+                user.PhoneNumber,
+                EmailConfirmed: user.EmailConfirmed,
+                user.IsActive,
+                user.CreatedAt,
+                user.LastLoginAt,
+                user.ProfilePhotoId.HasValue && photoPaths.TryGetValue(user.ProfilePhotoId.Value, out var path) ? path : null,
+                roles,
+                string.Join(", ", roles.Select(RoleLabel)),
+                relationCounts.TryGetValue(user.Id, out var count) ? count : 0);
+        }).ToList();
     }
 
-    private async Task<IReadOnlyList<LinkedAthleteRow>> LoadLinkedAthletesAsync(Guid userId) =>
+    private async Task<Dictionary<Guid, IReadOnlyList<string>>> LoadRoleMapAsync(IReadOnlyList<Guid> userIds) =>
         await (
+            from userRole in Db.UserRoles.AsNoTracking()
+            join role in Db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where userIds.Contains(userRole.UserId)
+            group role.Name by userRole.UserId into grouped
+            select new { UserId = grouped.Key, Roles = grouped.Where(x => x != null).Select(x => x!).ToList() })
+            .ToDictionaryAsync(x => x.UserId, x => (IReadOnlyList<string>)x.Roles, CancellationToken.None);
+
+    private async Task<IReadOnlyList<LinkedAthleteRow>> LoadLinkedAthletesAsync(Guid userId)
+    {
+        var selected = users.FirstOrDefault(x => x.Id == userId);
+        if (selected?.Roles.Contains(RoleNames.Athlete) == true)
+        {
+            return [];
+        }
+
+        return await (
             from relation in Db.AthleteRelations.AsNoTracking()
             join profile in Db.AthleteProfiles.AsNoTracking() on relation.AthleteProfileId equals profile.Id
             join athleteUser in Db.Users.AsNoTracking() on profile.UserId equals athleteUser.Id
             join branch in Db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
             from branch in branchJoin.DefaultIfEmpty()
-            where relation.RelatedUserId == userId && relation.RelationType == RelationType && relation.IsActive
+            where relation.RelatedUserId == userId &&
+                  relation.IsActive &&
+                  (!FixedRelationType.HasValue || relation.RelationType == FixedRelationType.Value)
             orderby athleteUser.FirstName, athleteUser.LastName
             select new LinkedAthleteRow(
                 profile.Id,
                 (athleteUser.FirstName + " " + athleteUser.LastName).Trim(),
                 branch == null ? null : branch.Name,
                 profile.PhoneNumber))
+            .ToListAsync(CancellationToken.None);
+    }
+
+    private async Task<IReadOnlyList<RelationHistoryRow>> LoadRelationHistoryAsync(Guid userId) =>
+        await (
+            from relation in Db.AthleteRelations.AsNoTracking()
+            join profile in Db.AthleteProfiles.AsNoTracking() on relation.AthleteProfileId equals profile.Id
+            join athleteUser in Db.Users.AsNoTracking() on profile.UserId equals athleteUser.Id
+            join relatedUser in Db.Users.AsNoTracking() on relation.RelatedUserId equals relatedUser.Id
+            where relation.RelatedUserId == userId || profile.UserId == userId
+            orderby relation.IsActive descending, relation.StartDate descending
+            select new RelationHistoryRow(
+                (athleteUser.FirstName + " " + athleteUser.LastName).Trim(),
+                (relatedUser.FirstName + " " + relatedUser.LastName).Trim(),
+                relation.RelationType,
+                relation.StartDate,
+                relation.EndDate,
+                relation.IsActive))
             .ToListAsync(CancellationToken.None);
 
     private IEnumerable<UserRow> FilteredUsers() =>
@@ -274,9 +541,27 @@ else
             : users.Where(x =>
                 Contains(x.FullName, searchText) ||
                 Contains(x.Email, searchText) ||
-                Contains(x.PhoneNumber, searchText));
+                Contains(x.PhoneNumber, searchText) ||
+                Contains(x.RoleLabels, searchText));
 
-    private string DetailUrl(Guid id) => IsParentPage ? $"/admin/parents/{id}" : $"/admin/coaches/{id}";
+    private string DetailUrl(Guid id) => IsParentPage ? $"/admin/parents/{id}" : IsCoachPage ? $"/admin/coaches/{id}" : $"/admin/users/{id}";
+
+    private static string GetSection(string uri)
+    {
+        var relativePath = new Uri(uri, UriKind.Absolute).AbsolutePath.Trim('/').ToLowerInvariant();
+        if (relativePath.StartsWith("admin/parents", StringComparison.Ordinal))
+        {
+            return "parents";
+        }
+
+        return relativePath.StartsWith("admin/coaches", StringComparison.Ordinal) ? "coaches" : "users";
+    }
+
+    private static Guid? ParseSelectedUserId(string uri)
+    {
+        var segments = new Uri(uri, UriKind.Absolute).AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length >= 3 && Guid.TryParse(segments[2], out var id) ? id : null;
+    }
 
     private static bool Contains(string? value, string query) =>
         value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
@@ -296,6 +581,41 @@ else
     private static string PhotoUrl(string path) =>
         path.StartsWith("/", StringComparison.Ordinal) ? path : $"/{path.Replace('\\', '/')}";
 
+    private static string RoleLabel(string roleName) => roleName switch
+    {
+        RoleNames.Admin => "Admin",
+        RoleNames.Coach => "Antrenör",
+        RoleNames.Athlete => "Sporcu",
+        RoleNames.Parent => "Ebeveyn",
+        _ => roleName
+    };
+
+    private static string RelationTypeText(AthleteRelationType relationType) => relationType switch
+    {
+        AthleteRelationType.Coach => "Antrenör",
+        AthleteRelationType.Parent => "Ebeveyn",
+        _ => relationType.ToString()
+    };
+
+    private static string GenerateTemporaryPassword()
+    {
+        const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+        Span<char> chars = stackalloc char[12];
+        for (var index = 0; index < chars.Length; index++)
+        {
+            chars[index] = alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)];
+        }
+
+        return $"Sgp-{new string(chars)}1!";
+    }
+
+    private sealed class AdminActionInput
+    {
+        [Required(ErrorMessage = "E-posta zorunludur.")]
+        [EmailAddress(ErrorMessage = "Geçerli bir e-posta adresi girin.")]
+        public string NewEmail { get; set; } = "";
+    }
+
     private sealed record UserRow(
         Guid Id,
         string FullName,
@@ -306,9 +626,12 @@ else
         DateTimeOffset CreatedAt,
         DateTimeOffset? LastLoginAt,
         string? PhotoPath,
+        IReadOnlyList<string> Roles,
+        string RoleLabels,
         int LinkedAthleteCount);
 
     private sealed record LinkedAthleteRow(Guid Id, string FullName, string? BranchName, string? PhoneNumber);
+    private sealed record RelationHistoryRow(string AthleteName, string RelatedUserName, AthleteRelationType RelationType, DateTimeOffset StartDate, DateTimeOffset? EndDate, bool IsActive);
 
     public void Dispose()
     {

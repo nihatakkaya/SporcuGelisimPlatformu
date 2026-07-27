@@ -67,3 +67,7 @@ Kritik kurallar:
 - Admin menüsünde Antrenörler ve Ebeveynler sayfaları arasında geçiş yapıldığında aynı bileşen yeniden yüklenmeli ve önceki liste türü ekranda kalmamalıdır.
 - Antrenör geri bildirim ekranında mesajlar sporcu bazlı akordiyon olarak gruplanmalı; okunmamış gelen mesajı olan sporcularda ana tema yeşiliyle dikkat çekici rozet gösterilmeli ve grup açıldığında bu mesajlar görüldü sayılmalıdır.
 - Giriş ekranında dış arka plan ile sol görsel panel arasında aynı fotoğrafın hizasız tekrarından kaynaklanan görsel kayma olmamalıdır.
+- Admin, tek kullanıcı yönetimi ekranında tüm rolleri filtreleyebilmeli; seçilen kullanıcıyı aktif/pasif yapabilmeli, e-posta adresini düzeltebilmeli, e-posta onay kodu gönderebilmeli ve geçici şifre gönderebilmelidir.
+- Admin ve Antrenör ekranlarında sporcu ilişkilerinin aktif/pasif geçmişi; ilişki türü, başlangıç ve bitiş tarihleriyle görüntülenebilmelidir.
+- Üst menü ve ana sayfa, okunmamış geri bildirimleri ve bekleyen kelime isteklerini küçük yeşil bildirim rozetleriyle göstermelidir.
+- Counter ve Weather gibi örnek scaffold sayfaları uygulama rotalarından kaldırılmalı; kullanılmayan Identity harici giriş, passkey, 2FA ve kişisel veri silme ekranları Türkçe kontrollü bilgilendirme ekranı olarak kalmalıdır.

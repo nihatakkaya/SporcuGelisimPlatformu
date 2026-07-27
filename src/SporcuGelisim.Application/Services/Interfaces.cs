@@ -96,3 +96,8 @@ public interface IDashboardService
     Task<string> ExportWordUsageCsvAsync(CancellationToken cancellationToken);
     Task<string> ExportSessionSummaryCsvAsync(CancellationToken cancellationToken);
 }
+
+public interface INotificationService
+{
+    Task<NotificationSummaryDto> GetSummaryAsync(CancellationToken cancellationToken);
+}

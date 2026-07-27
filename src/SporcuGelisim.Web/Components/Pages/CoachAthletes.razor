@@ -194,6 +194,33 @@ else
 
                     <section class="wide-section">
                         <div class="section-title-row">
+                            <h3>İlişki geçmişi</h3>
+                            <span>@relationHistory.Count kayıt</span>
+                        </div>
+                        @if (relationHistory.Count == 0)
+                        {
+                            <p class="muted-line">Bu sporcu için görüntüleyebileceğiniz ilişki geçmişi yok.</p>
+                        }
+                        else
+                        {
+                            <div class="relation-history-list">
+                                @foreach (var relation in relationHistory)
+                                {
+                                    <article class="relation-history-item @(relation.IsActive ? "active" : "passive")">
+                                        <span class="status-pill @(relation.IsActive ? "active" : "passive")">@(relation.IsActive ? "Aktif" : "Pasif")</span>
+                                        <div>
+                                            <strong>@relation.RelatedUserName</strong>
+                                            <span>@RelationTypeText(relation.RelationType)</span>
+                                            <small>@relation.StartDate.ToLocalTime().ToString("dd.MM.yyyy HH:mm") - @(relation.EndDate?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "Devam ediyor")</small>
+                                        </div>
+                                    </article>
+                                }
+                            </div>
+                        }
+                    </section>
+
+                    <section class="wide-section">
+                        <div class="section-title-row">
                             <h3>Geri Bildirimler</h3>
                             <span>@feedbacks.Count kayıt</span>
                         </div>
@@ -231,6 +258,7 @@ else
     private IReadOnlyList<AssignmentRow> assignedWords = [];
     private IReadOnlyList<UserOption> parents = [];
     private IReadOnlyList<ParentRow> activeParents = [];
+    private IReadOnlyList<RelationHistoryRow> relationHistory = [];
     private AthleteRow? selectedAthlete;
     private Guid? currentUserId;
     private bool isAdmin;
@@ -259,6 +287,7 @@ else
             feedbacks = [];
             assignedWords = [];
             activeParents = [];
+            relationHistory = [];
         }
 
         isLoading = false;
@@ -394,6 +423,20 @@ else
             orderby parent.FirstName, parent.LastName
             select new ParentRow(parent.Id, (parent.FirstName + " " + parent.LastName).Trim()))
             .ToListAsync(CancellationToken.None);
+
+        relationHistory = await (
+            from relation in Db.AthleteRelations.AsNoTracking()
+            join relatedUser in Db.Users.AsNoTracking() on relation.RelatedUserId equals relatedUser.Id
+            where relation.AthleteProfileId == athleteId &&
+                  (isAdmin || relation.RelatedUserId == currentUserId)
+            orderby relation.IsActive descending, relation.StartDate descending
+            select new RelationHistoryRow(
+                (relatedUser.FirstName + " " + relatedUser.LastName).Trim(),
+                relation.RelationType,
+                relation.StartDate,
+                relation.EndDate,
+                relation.IsActive))
+            .ToListAsync(CancellationToken.None);
     }
 
     private IEnumerable<AthleteRow> FilteredAthletes() =>
@@ -452,6 +495,13 @@ else
         _ => status.ToString()
     };
 
+    private static string RelationTypeText(AthleteRelationType relationType) => relationType switch
+    {
+        AthleteRelationType.Coach => "Antrenör ilişkisi",
+        AthleteRelationType.Parent => "Ebeveyn ilişkisi",
+        _ => relationType.ToString()
+    };
+
     private sealed record AthleteRow(
         Guid Id,
         Guid UserId,
@@ -471,4 +521,5 @@ else
     private sealed record AssignmentRow(Guid Id, Guid AthleteProfileId, string WordText);
     private sealed record UserOption(Guid Id, string Name);
     private sealed record ParentRow(Guid Id, string Name);
+    private sealed record RelationHistoryRow(string RelatedUserName, AthleteRelationType RelationType, DateTimeOffset StartDate, DateTimeOffset? EndDate, bool IsActive);
 }

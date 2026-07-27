@@ -647,6 +647,31 @@ a,
     background: #f5fbf7;
 }
 
+.dashboard-action.notification-action {
+    border-color: rgba(27, 172, 80, 0.4);
+    background: linear-gradient(180deg, rgba(27, 172, 80, 0.12), #fbfcfe);
+}
+
+.nav-link-with-badge {
+    align-items: center;
+    display: inline-flex;
+    gap: 0.4rem;
+}
+
+.nav-alert-badge {
+    align-items: center;
+    background: var(--school-green);
+    border-radius: 999px;
+    color: #fff;
+    display: inline-flex;
+    font-size: 0.72rem;
+    font-weight: 700;
+    height: 1.35rem;
+    justify-content: center;
+    min-width: 1.35rem;
+    padding: 0 0.38rem;
+}
+
 .dashboard-action strong,
 .dashboard-action span {
     display: block;
@@ -917,6 +942,73 @@ a,
 .inline-action-panel span,
 .inline-action-panel small {
     display: block;
+}
+
+.admin-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.admin-account-actions {
+    border: 1px solid #dfe8ef;
+    border-radius: 8px;
+    background: #fbfcfe;
+    margin: 18px 0;
+    padding: 18px;
+}
+
+.admin-action-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 14px;
+}
+
+.admin-email-form {
+    align-items: end;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    margin-top: 16px;
+}
+
+.relation-history-list {
+    display: grid;
+    gap: 10px;
+}
+
+.relation-history-item {
+    align-items: start;
+    border: 1px solid #dfe8ef;
+    border-radius: 8px;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 12px;
+}
+
+.relation-history-item.active {
+    background: #f5fbf7;
+}
+
+.relation-history-item.passive {
+    background: #fbfcfe;
+}
+
+.relation-history-item strong,
+.relation-history-item span,
+.relation-history-item small {
+    display: block;
+}
+
+.relation-history-item strong {
+    color: var(--school-blue-dark);
+}
+
+.relation-history-item small {
+    color: #63717e;
+    margin-top: 4px;
 }
 
 .inline-action-panel strong {

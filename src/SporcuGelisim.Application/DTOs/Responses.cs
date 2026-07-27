@@ -36,4 +36,8 @@ public sealed record WordRequestDto(
 public sealed record FeedbackDto(Guid Id, Guid AthleteProfileId, Guid? SessionId, Guid AuthorUserId, Guid? RecipientUserId, DateTimeOffset FeedbackDate, DateTimeOffset? RecipientViewedAt, string Comment);
 public sealed record FileAssetDto(Guid Id, string OriginalFileName, string ContentType, long FileSize, string RelativePath);
 public sealed record DashboardSummaryDto(int AthleteCount, int CoachCount, int ParentCount, int SessionCount);
+public sealed record NotificationSummaryDto(int UnreadFeedbackCount, int PendingWordRequestCount)
+{
+    public int TotalCount => UnreadFeedbackCount + PendingWordRequestCount;
+}
 public sealed record ReportRowDto(string Label, int Count);

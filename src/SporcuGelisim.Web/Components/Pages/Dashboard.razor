@@ -8,6 +8,7 @@
 @inject ApplicationDbContext Db
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject UserManager<ApplicationUser> UserManager
+@inject INotificationService NotificationService
 
 <PageTitle>Ana Sayfa</PageTitle>
 
@@ -87,6 +88,23 @@ else
             </div>
 
             <div class="dashboard-actions">
+                @if (notificationSummary?.UnreadFeedbackCount > 0)
+                {
+                    <a class="dashboard-action notification-action" href="/feedback">
+                        <strong>@notificationSummary.UnreadFeedbackCount okunmamış geri bildirim</strong>
+                        <span>Size gelen yeni mesajları görüntüleyin.</span>
+                    </a>
+                }
+                @if (notificationSummary?.PendingWordRequestCount > 0)
+                {
+                    <AuthorizeView Roles="@($"{RoleNames.Admin},{RoleNames.Coach}")">
+                        <a class="dashboard-action notification-action" href="/coach/words">
+                            <strong>@notificationSummary.PendingWordRequestCount bekleyen kelime isteği</strong>
+                            <span>Sporculardan gelen kelime isteklerini onaylayın veya reddedin.</span>
+                        </a>
+                    </AuthorizeView>
+                }
+
                 <AuthorizeView Roles="@RoleNames.Admin">
                     <a class="dashboard-action primary-action" href="/Account/Register">
                         <strong>Kayıt oluştur</strong>
@@ -171,10 +189,12 @@ else
 @code {
     private DashboardSummaryDto? summary;
     private AccountCard? account;
+    private NotificationSummaryDto? notificationSummary;
 
     protected override async Task OnInitializedAsync()
     {
         summary = await DashboardService.GetSummaryAsync(CancellationToken.None);
+        notificationSummary = await NotificationService.GetSummaryAsync(CancellationToken.None);
         account = await LoadAccountAsync();
     }
 
