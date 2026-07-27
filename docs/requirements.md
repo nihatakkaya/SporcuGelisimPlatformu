@@ -6,6 +6,7 @@ Roller: Admin, Athlete, Coach, Parent. Rol adları `RoleNames` sabitlerinden kul
 
 Kritik kurallar:
 - Üst menü ve hesap bağlantıları, Blazor Server circuit hatasına düşmeden sayfalar arasında geçiş yapmalı; yeniden bağlantı ekranı kullanıcıya Türkçe gösterilmelidir.
+- Mobil görünümde üst menüdeki üç çizgi butonu, mevcut tasarımı değiştirmeden menü bağlantılarını açıp kapatabilmelidir.
 - Coach ve Parent işlemlerinde `AthleteRelation` üzerinden aktif ilişki kontrolü yapılır.
 - UI buton gizleme güvenlik değildir; servis katmanı object-level authorization uygular.
 - Entity anahtarları Guid, tarih alanları UTC `DateTimeOffset` olmalıdır.
