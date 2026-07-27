@@ -35,7 +35,7 @@ Sporcu hesabına giriş yapan kullanıcı kendi bilgilerini doldurabilir ve gün
 - Ad soyad
 - TC kimlik no
 - Telefon no
-- 2. telefon numarası (ebeveyn no)
+- 2.telefon numarası (ebeveyn no)
 - Adres
 - Spor branşı
 - Doğum tarihi
