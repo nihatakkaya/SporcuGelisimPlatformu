@@ -99,7 +99,10 @@ a,
 .login-page {
     min-height: 100vh;
     padding: 32px;
-    background: linear-gradient(135deg, #2d6faa, #eef6f8 52%, #ffffff);
+    background:
+        linear-gradient(135deg, rgba(0, 63, 161, 0.72), rgba(0, 136, 122, 0.45)),
+        url("/img/arkaplan.jpg") no-repeat center center;
+    background-size: cover;
 }
 
 .login-shell {
