@@ -99,10 +99,7 @@ a,
 .login-page {
     min-height: 100vh;
     padding: 32px;
-    background:
-        linear-gradient(135deg, rgba(0, 63, 161, 0.72), rgba(0, 136, 122, 0.45)),
-        url("/img/arkaplan.jpg") no-repeat center center fixed;
-    background-size: cover;
+    background: linear-gradient(135deg, #2d6faa, #eef6f8 52%, #ffffff);
 }
 
 .login-shell {
@@ -1046,6 +1043,77 @@ a,
 .muted-line {
     margin: 0;
     font-weight: 650;
+}
+
+.feedback-accordion-list {
+    display: grid;
+    gap: 12px;
+}
+
+.feedback-athlete-group {
+    border: 1px solid #e4ebf2;
+    border-radius: 8px;
+    background: #fbfdff;
+    overflow: hidden;
+}
+
+.feedback-athlete-group summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.feedback-athlete-group summary::-webkit-details-marker {
+    display: none;
+}
+
+.feedback-athlete-group summary strong,
+.feedback-athlete-group summary small {
+    display: block;
+}
+
+.feedback-athlete-group summary strong {
+    color: #102844;
+    font-weight: 900;
+}
+
+.feedback-athlete-group summary small {
+    color: #6b7785;
+    font-weight: 700;
+}
+
+.unread-feedback-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(27, 172, 80, 0.14);
+    color: var(--school-green-dark);
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.unread-feedback-badge::before {
+    width: 8px;
+    height: 8px;
+    margin-right: 7px;
+    border-radius: 999px;
+    background: var(--school-green);
+    content: "";
+}
+
+.feedback-message-list {
+    padding: 0 16px 16px;
+}
+
+.feedback-message-unread {
+    border-color: rgba(27, 172, 80, 0.36) !important;
+    background: rgba(27, 172, 80, 0.06) !important;
 }
 
 .word-chip-list {

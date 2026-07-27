@@ -9,5 +9,6 @@ public sealed class Feedback : BaseEntity
     public Guid AuthorUserId { get; set; }
     public Guid? RecipientUserId { get; set; }
     public DateTimeOffset FeedbackDate { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? RecipientViewedAt { get; set; }
     public string Comment { get; set; } = string.Empty;
 }

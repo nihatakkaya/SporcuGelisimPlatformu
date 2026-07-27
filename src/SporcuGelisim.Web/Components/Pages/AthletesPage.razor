@@ -457,6 +457,7 @@ else
                 x.AuthorUserId,
                 x.RecipientUserId,
                 x.FeedbackDate,
+                x.RecipientViewedAt,
                 x.Comment))
             .ToListAsync(CancellationToken.None);
         assignedWords = allAssignments.Where(x => x.AthleteProfileId == athleteId && x.IsActive).ToList();

@@ -98,7 +98,7 @@ public sealed class FeedbackService(ApplicationDbContext db, ICurrentUserService
     }
 
     private static FeedbackDto ToDto(Feedback entity) =>
-        new(entity.Id, entity.AthleteProfileId, entity.SessionId, entity.AuthorUserId, entity.RecipientUserId, entity.FeedbackDate, entity.Comment);
+        new(entity.Id, entity.AthleteProfileId, entity.SessionId, entity.AuthorUserId, entity.RecipientUserId, entity.FeedbackDate, entity.RecipientViewedAt, entity.Comment);
 }
 
 public sealed class FileStorageService(ApplicationDbContext db, IWebHostEnvironment environment) : IFileStorageService

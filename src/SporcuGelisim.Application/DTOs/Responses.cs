@@ -33,7 +33,7 @@ public sealed record WordRequestDto(
     WordRequestStatus Status,
     string? ReviewNote,
     DateTimeOffset CreatedAt);
-public sealed record FeedbackDto(Guid Id, Guid AthleteProfileId, Guid? SessionId, Guid AuthorUserId, Guid? RecipientUserId, DateTimeOffset FeedbackDate, string Comment);
+public sealed record FeedbackDto(Guid Id, Guid AthleteProfileId, Guid? SessionId, Guid AuthorUserId, Guid? RecipientUserId, DateTimeOffset FeedbackDate, DateTimeOffset? RecipientViewedAt, string Comment);
 public sealed record FileAssetDto(Guid Id, string OriginalFileName, string ContentType, long FileSize, string RelativePath);
 public sealed record DashboardSummaryDto(int AthleteCount, int CoachCount, int ParentCount, int SessionCount);
 public sealed record ReportRowDto(string Label, int Count);

@@ -64,3 +64,6 @@ Kritik kurallar:
 - Giriş ekranında bağımsız `E-posta onayı` bağlantısı gösterilmemeli; e-posta onayı yalnızca onay bekleyen kullanıcı giriş yaptığında veya kayıt sonrası yönlendirme ile açılmalıdır.
 - `Şifremi unuttum` ekranı tamamen Türkçe olmalı; kullanıcı e-posta adresini girdiğinde sisteme kayıtlıysa yeni geçici şifre bu adrese gönderilmeli ve hesap şifresi bu geçici şifre olarak güncellenmelidir.
 - Admin, sporcular listesine ek olarak antrenör ve ebeveyn hesaplarını alfabetik arama listesiyle görüntüleyebilmeli; seçilen hesabın temel bilgileri ve aktif bağlı sporcuları gösterilmelidir.
+- Admin menüsünde Antrenörler ve Ebeveynler sayfaları arasında geçiş yapıldığında aynı bileşen yeniden yüklenmeli ve önceki liste türü ekranda kalmamalıdır.
+- Antrenör geri bildirim ekranında mesajlar sporcu bazlı akordiyon olarak gruplanmalı; okunmamış gelen mesajı olan sporcularda ana tema yeşiliyle dikkat çekici rozet gösterilmeli ve grup açıldığında bu mesajlar görüldü sayılmalıdır.
+- Giriş ekranında dış arka plan ile sol görsel panel arasında aynı fotoğrafın hizasız tekrarından kaynaklanan görsel kayma olmamalıdır.

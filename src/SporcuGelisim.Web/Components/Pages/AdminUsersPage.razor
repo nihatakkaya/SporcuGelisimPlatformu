@@ -4,7 +4,9 @@
 @page "/admin/parents/{SelectedUserId:guid}"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = RoleNames.Admin)]
+@implements IDisposable
 
+@using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using SporcuGelisim.Domain.Enums
@@ -149,8 +151,10 @@ else
     private UserRow? selectedUser;
     private bool isLoading = true;
     private string? searchText;
+    private string currentSection = "";
+    private bool disposed;
 
-    private bool IsParentPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("admin/parents", StringComparison.OrdinalIgnoreCase);
+    private bool IsParentPage => currentSection == "parents";
     private string RoleName => IsParentPage ? RoleNames.Parent : RoleNames.Coach;
     private AthleteRelationType RelationType => IsParentPage ? AthleteRelationType.Parent : AthleteRelationType.Coach;
     private string RoleLabel => IsParentPage ? "Ebeveyn" : "Antrenör";
@@ -167,14 +171,57 @@ else
         ? "Bu ebeveyn hesabına bağlı aktif sporcu yok."
         : "Bu antrenör hesabına bağlı aktif sporcu yok.";
 
+    protected override void OnInitialized()
+    {
+        currentSection = GetSection(Navigation.Uri);
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
     protected override async Task OnParametersSetAsync()
     {
+        await ReloadAsync(GetSection(Navigation.Uri), SelectedUserId);
+    }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var nextSection = GetSection(e.Location);
+        if (nextSection == currentSection)
+        {
+            return;
+        }
+
+        await InvokeAsync(async () =>
+        {
+            searchText = null;
+            await ReloadAsync(nextSection, ParseSelectedUserId(e.Location));
+            if (!disposed)
+            {
+                StateHasChanged();
+            }
+        });
+    }
+
+    private async Task ReloadAsync(string section, Guid? selectedUserId)
+    {
+        currentSection = section;
         isLoading = true;
         users = await LoadUsersAsync();
-        var selectedId = SelectedUserId ?? users.FirstOrDefault()?.Id;
+        var selectedId = selectedUserId ?? users.FirstOrDefault()?.Id;
         selectedUser = selectedId.HasValue ? users.FirstOrDefault(x => x.Id == selectedId.Value) : null;
         linkedAthletes = selectedUser is null ? [] : await LoadLinkedAthletesAsync(selectedUser.Id);
         isLoading = false;
+    }
+
+    private static string GetSection(string uri)
+    {
+        var relativePath = new Uri(uri, UriKind.Absolute).AbsolutePath.Trim('/').ToLowerInvariant();
+        return relativePath.StartsWith("admin/parents", StringComparison.Ordinal) ? "parents" : "coaches";
+    }
+
+    private static Guid? ParseSelectedUserId(string uri)
+    {
+        var segments = new Uri(uri, UriKind.Absolute).AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length >= 3 && Guid.TryParse(segments[2], out var id) ? id : null;
     }
 
     private async Task<IReadOnlyList<UserRow>> LoadUsersAsync()
@@ -262,4 +309,10 @@ else
         int LinkedAthleteCount);
 
     private sealed record LinkedAthleteRow(Guid Id, string FullName, string? BranchName, string? PhoneNumber);
+
+    public void Dispose()
+    {
+        disposed = true;
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
 }
