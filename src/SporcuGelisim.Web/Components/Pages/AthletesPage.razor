@@ -334,6 +334,7 @@ else
             from branch in branchJoin.DefaultIfEmpty()
             join photoAsset in Db.FileAssets.AsNoTracking() on user.ProfilePhotoId equals photoAsset.Id into photoJoin
             from photo in photoJoin.DefaultIfEmpty()
+            where user.IsActive && !profile.IsDeleted
             orderby user.FirstName, user.LastName
             select new AthleteProfileDto(
                 profile.Id,
@@ -360,7 +361,7 @@ else
             from branch in branchJoin.DefaultIfEmpty()
             join photoAsset in Db.FileAssets.AsNoTracking() on user.ProfilePhotoId equals photoAsset.Id into photoJoin
             from photo in photoJoin.DefaultIfEmpty()
-            where relation.RelatedUserId == userId && relation.RelationType == relationType && relation.IsActive
+            where relation.RelatedUserId == userId && relation.RelationType == relationType && relation.IsActive && user.IsActive && !profile.IsDeleted
             orderby user.FirstName, user.LastName
             select new AthleteProfileDto(
                 profile.Id,
@@ -386,7 +387,7 @@ else
             from branch in branchJoin.DefaultIfEmpty()
             join photoAsset in Db.FileAssets.AsNoTracking() on user.ProfilePhotoId equals photoAsset.Id into photoJoin
             from photo in photoJoin.DefaultIfEmpty()
-            where profile.Id == athleteProfileId
+            where profile.Id == athleteProfileId && user.IsActive && !profile.IsDeleted
             select new AthleteProfileDto(
                 profile.Id,
                 profile.UserId,

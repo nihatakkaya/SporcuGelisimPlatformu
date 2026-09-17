@@ -189,6 +189,7 @@
             join user in Db.Users.AsNoTracking() on profile.UserId equals user.Id
             join branch in Db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
             from branch in branchJoin.DefaultIfEmpty()
+            where user.IsActive && !profile.IsDeleted
             orderby user.FirstName, user.LastName
             select new AthleteOption(profile.Id, (user.FirstName + " " + user.LastName).Trim(), branch == null ? "Branş girilmemiş" : branch.Name))
             .ToListAsync(CancellationToken.None);
@@ -203,7 +204,7 @@
             join relatedUser in Db.Users.AsNoTracking() on relation.RelatedUserId equals relatedUser.Id
             join branch in Db.SportBranches.AsNoTracking() on profile.PrimaryBranchId equals branch.Id into branchJoin
             from branch in branchJoin.DefaultIfEmpty()
-            where relation.IsActive
+            where relation.IsActive && !profile.IsDeleted && athleteUser.IsActive && relatedUser.IsActive
             orderby athleteUser.FirstName, athleteUser.LastName
             select new RelationRow(
                 (athleteUser.FirstName + " " + athleteUser.LastName).Trim(),

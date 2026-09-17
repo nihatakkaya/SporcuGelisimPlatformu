@@ -4,6 +4,7 @@ using SporcuGelisim.Application.DTOs;
 using SporcuGelisim.Application.Services;
 using SporcuGelisim.Domain.Common;
 using SporcuGelisim.Domain.Entities;
+using SporcuGelisim.Domain.Enums;
 using SporcuGelisim.Infrastructure.Data;
 
 namespace SporcuGelisim.Infrastructure.Services;
@@ -80,6 +81,30 @@ public sealed class AthleteRelationService(ApplicationDbContext db, ICurrentUser
             throw new ForbiddenException("İlişki yönetimi yalnızca Admin yetkisindedir.");
         }
 
+        var athleteIsActive = await (
+            from profile in db.AthleteProfiles.AsNoTracking()
+            join user in db.Users.AsNoTracking() on profile.UserId equals user.Id
+            where profile.Id == request.AthleteProfileId && !profile.IsDeleted && user.IsActive
+            select profile.Id)
+            .AnyAsync(cancellationToken);
+        if (!athleteIsActive)
+        {
+            throw new NotFoundException("Aktif sporcu profili bulunamadı.");
+        }
+
+        var expectedRole = request.RelationType == AthleteRelationType.Parent ? RoleNames.Parent : RoleNames.Coach;
+        var relatedUserIsActive = await (
+            from user in db.Users.AsNoTracking()
+            join userRole in db.UserRoles.AsNoTracking() on user.Id equals userRole.UserId
+            join role in db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+            where user.Id == request.RelatedUserId && user.IsActive && role.Name == expectedRole
+            select user.Id)
+            .AnyAsync(cancellationToken);
+        if (!relatedUserIsActive)
+        {
+            throw new NotFoundException("Aktif atama hesabı bulunamadı.");
+        }
+
         var exists = await db.AthleteRelations.AnyAsync(x =>
             x.AthleteProfileId == request.AthleteProfileId &&
             x.RelatedUserId == request.RelatedUserId &&
@@ -121,6 +146,7 @@ public sealed class AthleteRelationService(ApplicationDbContext db, ICurrentUser
                 from branch in branchJoin.DefaultIfEmpty()
                 join photoAsset in db.FileAssets.AsNoTracking() on user.ProfilePhotoId equals photoAsset.Id into photoJoin
                 from photo in photoJoin.DefaultIfEmpty()
+                where user.IsActive && !profile.IsDeleted
                 orderby user.FirstName, user.LastName
                 select new AthleteProfileDto(
                     profile.Id,
@@ -147,7 +173,7 @@ public sealed class AthleteRelationService(ApplicationDbContext db, ICurrentUser
             from branch in branchJoin.DefaultIfEmpty()
             join photoAsset in db.FileAssets.AsNoTracking() on user.ProfilePhotoId equals photoAsset.Id into photoJoin
             from photo in photoJoin.DefaultIfEmpty()
-            where relation.RelatedUserId == userId && relation.IsActive
+            where relation.RelatedUserId == userId && relation.IsActive && user.IsActive && !profile.IsDeleted
             orderby user.FirstName, user.LastName
             select new AthleteProfileDto(
                 profile.Id,

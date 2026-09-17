@@ -47,6 +47,7 @@ Kritik kurallar:
 - Sporcu atama ekranında sporcu ve hesap seçimi aramalı, açılır liste biçiminde olmalı; yazılan harflere göre filtreleme yapılmalıdır.
 - Sporcu atama ekranında Sporcu, Antrenör ve Ebeveyn panellerinin her birinde yazılı arama alanı ve `Ara` butonu bulunmalıdır.
 - Sporcu-antrenör ve sporcu-ebeveyn ilişki atama işlemi Blazor Server bağlantısına bağlı kalmayan klasik form POST akışıyla çalışmalıdır.
+- Pasife alınan sporcu, antrenör veya ebeveyn hesapları sporcu atama listelerinde gösterilmemeli ve klasik form POST ile de yeni ilişkiye atanamamalıdır.
 - Sporcu profil güncelleme formu, görsel yüklemede Blazor Server bağlantısına bağımlı kalmamak için yetkili klasik multipart POST akışıyla kaydedilmelidir.
 - Sporcu profilinde TC kimlik, spor branşı, telefon no, 2. telefon numarası (ebeveyn no), doğum tarihi ve adres zorunlu olmalıdır; TC kimlik 11 rakam, telefonlar `05` ile başlayan 11 hane ve `0555 555 55 55` formatında saklanmalıdır.
 - Sporcu geri bildirimi, antrenör ve mesaj seçimini Blazor Server event akışına bağlı kalmadan klasik form POST ile göndermelidir.

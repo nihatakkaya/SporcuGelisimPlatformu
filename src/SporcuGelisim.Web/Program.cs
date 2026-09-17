@@ -155,7 +155,12 @@ app.MapPost("/coach/athletes/add", async (
             return Results.LocalRedirect("/athletes?coachMissing=1");
         }
 
-        var athleteExists = await db.AthleteProfiles.AnyAsync(x => x.Id == athleteProfileId.Value, cancellationToken);
+        var athleteExists = await (
+            from profile in db.AthleteProfiles.AsNoTracking()
+            join user in db.Users.AsNoTracking() on profile.UserId equals user.Id
+            where profile.Id == athleteProfileId.Value && !profile.IsDeleted && user.IsActive
+            select profile.Id)
+            .AnyAsync(cancellationToken);
         if (!athleteExists)
         {
             return Results.LocalRedirect("/athletes?coachMissing=1");
@@ -329,7 +334,8 @@ app.MapPost("/admin/relations/assign", async (
         var relatedUserHasRole = await (
             from userRole in db.UserRoles.AsNoTracking()
             join role in db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
-            where userRole.UserId == relatedUserId.Value && role.Name == expectedRole
+            join user in db.Users.AsNoTracking() on userRole.UserId equals user.Id
+            where userRole.UserId == relatedUserId.Value && role.Name == expectedRole && user.IsActive
             select userRole.UserId)
             .AnyAsync(cancellationToken);
         if (!relatedUserHasRole)
@@ -337,7 +343,12 @@ app.MapPost("/admin/relations/assign", async (
             return Results.LocalRedirect("/admin/relations?invalid=1");
         }
 
-        var athleteExists = await db.AthleteProfiles.AnyAsync(x => x.Id == athleteProfileId.Value, cancellationToken);
+        var athleteExists = await (
+            from profile in db.AthleteProfiles.AsNoTracking()
+            join user in db.Users.AsNoTracking() on profile.UserId equals user.Id
+            where profile.Id == athleteProfileId.Value && !profile.IsDeleted && user.IsActive
+            select profile.Id)
+            .AnyAsync(cancellationToken);
         if (!athleteExists)
         {
             return Results.LocalRedirect("/admin/relations?missing=1");

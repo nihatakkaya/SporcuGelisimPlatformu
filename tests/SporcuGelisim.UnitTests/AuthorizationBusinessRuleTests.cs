@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SporcuGelisim.Application.Common;
 using SporcuGelisim.Application.DTOs;
@@ -37,6 +38,21 @@ public sealed class AuthorizationBusinessRuleTests
         var athlete = Assert.Single(athletes);
         Assert.Equal(TestFixture.AthleteProfile1Id, athlete.Id);
         Assert.Equal("Futbol", athlete.BranchName);
+    }
+
+    [Fact]
+    public async Task Athlete_lists_exclude_inactive_athlete_users()
+    {
+        await using var fixture = await TestFixture.CreateAsync(RoleNames.Admin, TestFixture.AdminUserId);
+        var inactiveAthleteUser = await fixture.Db.Users.FirstAsync(x => x.Id == TestFixture.AthleteUser2Id);
+        inactiveAthleteUser.IsActive = false;
+        await fixture.Db.SaveChangesAsync();
+
+        var service = new AthleteRelationService(fixture.Db, fixture.CurrentUser, fixture.Audit);
+        var athletes = await service.GetRelatedAthletesAsync(CancellationToken.None);
+
+        Assert.Contains(athletes, x => x.Id == TestFixture.AthleteProfile1Id);
+        Assert.DoesNotContain(athletes, x => x.Id == TestFixture.AthleteProfile2Id);
     }
 
     [Fact]
@@ -272,6 +288,30 @@ public sealed class AuthorizationBusinessRuleTests
     }
 
     [Fact]
+    public async Task Admin_cannot_assign_relation_to_inactive_accounts()
+    {
+        await using var fixture = await TestFixture.CreateAsync(RoleNames.Admin, TestFixture.AdminUserId);
+        var service = new AthleteRelationService(fixture.Db, fixture.CurrentUser, fixture.Audit);
+
+        var coach = await fixture.Db.Users.FirstAsync(x => x.Id == TestFixture.CoachUserId);
+        coach.IsActive = false;
+        await fixture.Db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.AssignAsync(
+            new AssignAthleteRelationRequest(TestFixture.AthleteProfile2Id, TestFixture.CoachUserId, AthleteRelationType.Coach),
+            CancellationToken.None));
+
+        coach.IsActive = true;
+        var athlete = await fixture.Db.Users.FirstAsync(x => x.Id == TestFixture.AthleteUser2Id);
+        athlete.IsActive = false;
+        await fixture.Db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.AssignAsync(
+            new AssignAthleteRelationRequest(TestFixture.AthleteProfile2Id, TestFixture.CoachUserId, AthleteRelationType.Coach),
+            CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Anonymous_user_cannot_access_athlete()
     {
         await using var fixture = await TestFixture.CreateAsync(null, null);
@@ -335,6 +375,21 @@ public sealed class AuthorizationBusinessRuleTests
                 User(AthleteUser2Id, "Sporcu", "İki"),
                 User(CoachUserId, "Koç", "Bir"),
                 User(ParentUserId, "Ebeveyn", "Bir"));
+            var adminRoleId = Guid.Parse("60000000-0000-0000-0000-000000000001");
+            var athleteRoleId = Guid.Parse("60000000-0000-0000-0000-000000000002");
+            var coachRoleId = Guid.Parse("60000000-0000-0000-0000-000000000003");
+            var parentRoleId = Guid.Parse("60000000-0000-0000-0000-000000000004");
+            db.Roles.AddRange(
+                Role(adminRoleId, RoleNames.Admin),
+                Role(athleteRoleId, RoleNames.Athlete),
+                Role(coachRoleId, RoleNames.Coach),
+                Role(parentRoleId, RoleNames.Parent));
+            db.UserRoles.AddRange(
+                new IdentityUserRole<Guid> { UserId = AdminUserId, RoleId = adminRoleId },
+                new IdentityUserRole<Guid> { UserId = AthleteUser1Id, RoleId = athleteRoleId },
+                new IdentityUserRole<Guid> { UserId = AthleteUser2Id, RoleId = athleteRoleId },
+                new IdentityUserRole<Guid> { UserId = CoachUserId, RoleId = coachRoleId },
+                new IdentityUserRole<Guid> { UserId = ParentUserId, RoleId = parentRoleId });
             db.AthleteProfiles.AddRange(
                 new AthleteProfile { Id = AthleteProfile1Id, UserId = AthleteUser1Id, PrimaryBranchId = ChildBranchId },
                 new AthleteProfile { Id = AthleteProfile2Id, UserId = AthleteUser2Id });
@@ -369,6 +424,9 @@ public sealed class AuthorizationBusinessRuleTests
 
         private static ApplicationUser User(Guid id, string firstName, string lastName) =>
             new() { Id = id, UserName = $"{id}@test.local", Email = $"{id}@test.local", FirstName = firstName, LastName = lastName, IsActive = true };
+
+        private static IdentityRole<Guid> Role(Guid id, string name) =>
+            new() { Id = id, Name = name, NormalizedName = name.ToUpperInvariant() };
     }
 
     private sealed class TestCurrentUser(Guid? userId, IReadOnlySet<string> roles) : ICurrentUserService
