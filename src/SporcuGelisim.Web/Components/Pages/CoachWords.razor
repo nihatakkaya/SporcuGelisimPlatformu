@@ -8,6 +8,8 @@
 @using SporcuGelisim.Domain.Enums
 @using SporcuGelisim.Infrastructure.Data
 @using SporcuGelisim.Infrastructure.Identity
+@using SporcuGelisim.Web.Components.Shared
+@inject IMotivationWordService WordService
 @inject ApplicationDbContext Db
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject UserManager<ApplicationUser> UserManager
@@ -106,36 +108,15 @@
         <h2>Kelimeyi sporcuya ata</h2>
     </div>
 
-    <EditForm Model="assignmentInput" OnValidSubmit="AssignWordAsync" FormName="word-assign">
-        <DataAnnotationsValidator />
-        <ValidationSummary class="alert alert-danger" role="alert" />
-
-        <div class="row g-3 align-items-end">
-            <div class="col-md-5">
-                <label class="form-label" for="AssignmentWord">Kelime</label>
-                <InputSelect id="AssignmentWord" class="form-select" @bind-Value="assignmentInput.WordId">
-                    <option value="">Seçiniz</option>
-                    @foreach (var word in words)
-                    {
-                        <option value="@word.Id">@word.Text</option>
-                    }
-                </InputSelect>
-            </div>
-            <div class="col-md-5">
-                <label class="form-label" for="AssignmentAthlete">Sporcu</label>
-                <InputSelect id="AssignmentAthlete" class="form-select" @bind-Value="assignmentInput.AthleteProfileId">
-                    <option value="">Seçiniz</option>
-                    @foreach (var athlete in athletes)
-                    {
-                        <option value="@athlete.Id">@athlete.Name (@athlete.BranchName)</option>
-                    }
-                </InputSelect>
-            </div>
-            <div class="col-md-2">
-                <button class="btn btn-primary w-100" type="submit" disabled="@(words.Count == 0 || athletes.Count == 0)">Ata</button>
-            </div>
-        </div>
-    </EditForm>
+    <label class="form-label" for="AssignmentAthlete">Sporcu seçin</label>
+    <select id="AssignmentAthlete" class="form-select mb-4" @bind="assignmentInput.AthleteProfileId">
+        <option value="">Seçiniz</option>
+        @foreach (var athlete in athletes) { <option value="@athlete.Id">@athlete.Name (@athlete.BranchName)</option> }
+    </select>
+    @if (assignmentInput.AthleteProfileId is Guid athleteId)
+    {
+        <AssignedWordEditor AthleteId="athleteId" Changed="LoadAsync" @key="athleteId" />
+    }
 
     @if (athletes.Count == 0)
     {
@@ -348,142 +329,27 @@
         await LoadAsync();
     }
 
-    private async Task AssignWordAsync()
-    {
-        if (!EnsureCoachOrAdmin())
-        {
-            return;
-        }
-
-        if (!assignmentInput.WordId.HasValue || !assignmentInput.AthleteProfileId.HasValue)
-        {
-            message = "Hata: Kelime ve sporcu seçin.";
-            return;
-        }
-
-        if (!athletes.Any(x => x.Id == assignmentInput.AthleteProfileId.Value))
-        {
-            message = "Hata: Bu sporcuya erişim yetkiniz yok.";
-            return;
-        }
-
-        var word = words.FirstOrDefault(x => x.Id == assignmentInput.WordId.Value);
-        if (word is null)
-        {
-            message = "Hata: Kelime bulunamadı.";
-            return;
-        }
-
-        var exists = await Db.AthleteWordAssignments.AnyAsync(x =>
-            x.AthleteProfileId == assignmentInput.AthleteProfileId.Value &&
-            x.MotivationWordId == assignmentInput.WordId.Value &&
-            x.IsActive,
-            CancellationToken.None);
-        if (!exists)
-        {
-            Db.AthleteWordAssignments.Add(new AthleteWordAssignment
-            {
-                AthleteProfileId = assignmentInput.AthleteProfileId.Value,
-                MotivationWordId = assignmentInput.WordId.Value,
-                AssignedByUserId = currentUserId!.Value
-            });
-            await Db.SaveChangesAsync(CancellationToken.None);
-        }
-
-        assignmentInput = new();
-        message = "Başarılı: Kelime sporcuya atandı.";
-        await LoadAsync();
-    }
-
     private async Task RemoveAssignmentAsync(Guid assignmentId)
     {
-        if (!EnsureCoachOrAdmin())
+        try
         {
-            return;
+            await WordService.RemoveAthleteAssignmentAsync(assignmentId, CancellationToken.None);
+            message = "Başarılı: Kelime ataması kaldırıldı.";
+            await LoadAsync();
         }
-
-        var assignment = await Db.AthleteWordAssignments.FirstOrDefaultAsync(x => x.Id == assignmentId, CancellationToken.None);
-        if (assignment is null || (!isAdmin && assignment.AssignedByUserId != currentUserId))
-        {
-            message = "Hata: Bu atamayı kaldırma yetkiniz yok.";
-            return;
-        }
-
-        assignment.IsActive = false;
-        assignment.UpdatedAt = DateTimeOffset.UtcNow;
-        await Db.SaveChangesAsync(CancellationToken.None);
-        message = "Başarılı: Kelime ataması kaldırıldı.";
-        await LoadAsync();
+        catch (Exception) { message = "Hata: Atama kaldırılamadı veya erişim yetkiniz yok."; }
     }
 
     private async Task ReviewRequestAsync(Guid requestId, bool approved)
     {
-        if (!EnsureCoachOrAdmin())
+        try
         {
-            return;
+            await WordService.ReviewWordRequestAsync(new(requestId, approved, null), CancellationToken.None);
+            message = approved ? "Başarılı: Kelime isteği onaylandı." : "Başarılı: Kelime isteği reddedildi.";
+            await LoadAsync();
         }
-
-        var request = await Db.AthleteWordRequests.FirstOrDefaultAsync(x => x.Id == requestId, CancellationToken.None);
-        if (request is null || (!isAdmin && request.TargetCoachUserId != currentUserId))
-        {
-            message = "Hata: Bu isteği değerlendirme yetkiniz yok.";
-            return;
-        }
-
-        if (request.Status != WordRequestStatus.Pending)
-        {
-            message = "Hata: Bu istek daha önce değerlendirilmiş.";
-            return;
-        }
-
-        request.Status = approved ? WordRequestStatus.Approved : WordRequestStatus.Rejected;
-        request.ReviewedByUserId = currentUserId;
-        request.ReviewedAt = DateTimeOffset.UtcNow;
-        request.UpdatedAt = DateTimeOffset.UtcNow;
-
-        if (approved)
-        {
-            var word = await Db.MotivationWords.FirstOrDefaultAsync(x =>
-                x.NormalizedText == request.NormalizedText &&
-                x.CreatedByUserId == currentUserId,
-                CancellationToken.None);
-            if (word is null)
-            {
-                word = new MotivationWord
-                {
-                    Text = request.Text,
-                    NormalizedText = request.NormalizedText,
-                    Description = request.Note,
-                    IsActive = true,
-                    CreatedByUserId = currentUserId,
-                    CreatedByRole = RoleNames.Coach
-                };
-                Db.MotivationWords.Add(word);
-                await Db.SaveChangesAsync(CancellationToken.None);
-            }
-
-            request.CreatedWordId = word.Id;
-            var exists = await Db.AthleteWordAssignments.AnyAsync(x =>
-                x.AthleteProfileId == request.AthleteProfileId &&
-                x.MotivationWordId == word.Id &&
-                x.IsActive,
-                CancellationToken.None);
-            if (!exists)
-            {
-                Db.AthleteWordAssignments.Add(new AthleteWordAssignment
-                {
-                    AthleteProfileId = request.AthleteProfileId,
-                    MotivationWordId = word.Id,
-                    AssignedByUserId = currentUserId!.Value
-                });
-            }
-        }
-
-        await Db.SaveChangesAsync(CancellationToken.None);
-        message = approved ? "Başarılı: Kelime isteği onaylandı." : "Başarılı: Kelime isteği reddedildi.";
-        await LoadAsync();
+        catch (Exception) { message = "Hata: İstek değerlendirilemedi veya erişim yetkiniz yok."; }
     }
-
     private void CancelEdit()
     {
         editingWordId = null;

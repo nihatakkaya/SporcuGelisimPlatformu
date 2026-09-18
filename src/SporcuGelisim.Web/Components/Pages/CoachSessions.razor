@@ -1,0 +1,190 @@
+@page "/coach/athletes/{AthleteId:guid}/sessions"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = RoleNames.Coach + "," + RoleNames.Admin)]
+@using SporcuGelisim.Web.Components.Shared
+@inject IAthleteSessionService Sessions
+@inject IAthleteProfileService Profiles
+@inject IAthleteAccessService Access
+@inject IMotivationWordService Words
+
+<PageTitle>Sporcu Oturumları</PageTitle>
+<section class="page-hero compact-hero"><div><p class="dashboard-kicker">Görüşme geçmişi</p><h1>Oturumlar</h1><p>@name</p></div><a class="btn btn-outline-primary" href="@($"/coach/athletes/{AthleteId}")">Profile dön</a></section>
+<StatusMessage Message="@message" />
+@if (ready)
+{
+    <div class="session-workspace">
+        <aside class="content-card p-3 session-list">
+            <button class="btn btn-primary w-100 mb-3" disabled="@(busy || editing || confirmingDelete)" @onclick="CreateAsync">+ Yeni Oturum</button>
+            @if (sessions.Count == 0) { <p class="text-muted">İlk görüşmeniz için yeni oturum oluşturun.</p> }
+            @foreach (var session in sessions)
+            {
+                <button type="button" disabled="@(busy || editing || confirmingDelete)" class="session-list-card @(detail?.Session.Id == session.Id ? "selected" : "")" @onclick="() => SelectAsync(session.Id)">
+                    <strong>Oturum @session.SessionNumber</strong><time>@session.SessionDate.ToOffset(TimeSpan.FromHours(3)).ToString("dd.MM.yyyy")</time>
+                </button>
+            }
+        </aside>
+        <article class="content-card p-4">
+            @if (detail is not null)
+            {
+                <div class="section-title-row"><h2>Oturum @detail.Session.SessionNumber</h2><small>Oluşturulma: @detail.CreatedAt.ToOffset(TimeSpan.FromHours(3)).ToString("dd.MM.yyyy HH:mm")</small></div>
+                <SessionHistory Detail="detail" />
+                @if (!editing)
+                {
+                    <div class="session-note-grid mt-4">
+                        <section class="note-panel private-note"><h3 class="h5">Özel Antrenör Notu 🔒</h3><p class="session-note-text">@(detail.PrivateCoachNote ?? "Henüz not yok.")</p></section>
+                        <section class="note-panel"><h3 class="h5">Sporcu ile Paylaşılan Not</h3><p class="session-note-text">@(detail.SharedNote ?? "Henüz not yok.")</p></section>
+                    </div>
+                    <p class="mt-3">Oturum tarihi: @detail.Session.SessionDate.ToOffset(TimeSpan.FromHours(3)).ToString("dd.MM.yyyy")</p>
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-primary" disabled="@(busy || confirmingDelete)" @onclick="BeginEdit">Düzenle</button>
+                        @if (detail.CanDelete) { <button class="btn btn-outline-danger" disabled="@busy" @onclick="() => confirmingDelete = true">Oturumu Sil</button> }
+                    </div>
+                }
+                else
+                {
+                    <fieldset disabled="@busy" class="mt-4">
+                        <legend class="h5">Oturumu düzenle</legend>
+                        <p class="alert alert-info">Değişiklikler yalnızca kaydettiğinizde uygulanır. Sonraki oturumların kelimeleri ve güncel atamalar yeniden hesaplanır.</p>
+                        <div class="session-note-grid">
+                            <section class="note-panel private-note"><label for="private-note" class="form-label fw-bold">Özel Antrenör Notu 🔒</label><textarea id="private-note" class="form-control" rows="5" maxlength="10000" @bind="privateNote"></textarea></section>
+                            <section class="note-panel"><label for="shared-note" class="form-label fw-bold">Sporcu ile Paylaşılan Not</label><textarea id="shared-note" class="form-control" rows="5" maxlength="10000" @bind="sharedNote"></textarea></section>
+                        </div>
+                        <label for="session-date" class="form-label mt-3">Oturum tarihi</label><input id="session-date" type="date" class="form-control" @bind="date" />
+                        <h3 class="h5 mt-4">Mevcut kelime işlemleri</h3>
+                        <p class="text-muted">Yanlış işlemi kaldırın; vazgeçerseniz geri alın.</p>
+                        <div class="session-chips">
+                            @foreach (var change in detail.Changes)
+                            {
+                                <button type="button" class="session-chip @(change.Added ? "added" : "removed")" aria-pressed="@(removedChanges.Contains(change.Id) ? "true" : "false")" @onclick="() => ToggleRemoval(change.Id)">
+                                    @(change.Added ? "+" : "−") @change.Text — @(removedChanges.Contains(change.Id) ? "Kaldırılacak · Geri al" : "İşlemi kaldır")
+                                </button>
+                            }
+                        </div>
+                        <label for="history-word-search" class="form-label mt-4">Kelime işlemi ekle</label>
+                        <input id="history-word-search" class="form-control" placeholder="Kelime ara…" @bind="wordSearch" @bind:event="oninput" />
+                        <div class="picker-options mt-2">
+                            @foreach (var word in EditWords.Where(x => x.Text.Contains(wordSearch, StringComparison.CurrentCultureIgnoreCase)))
+                            {
+                                <div class="d-flex flex-wrap align-items-center gap-2 mb-2"><span class="me-auto">@word.Text</span><button class="btn btn-sm btn-outline-success" type="button" @onclick="() => Stage(word.MotivationWordId, true)">+ Ekle</button><button class="btn btn-sm btn-outline-danger" type="button" @onclick="() => Stage(word.MotivationWordId, false)">− Çıkar</button></div>
+                            }
+                        </div>
+                        <h3 class="h5 mt-3">Kaydedilecek yeni işlemler</h3>
+                        <div class="session-chips">
+                            @foreach (var change in staged)
+                            { <button type="button" class="session-chip @(change.Added ? "added" : "removed")" @onclick="() => staged.Remove(change)">@(change.Added ? "+" : "−") @WordText(change.MotivationWordId) ×</button> }
+                        </div>
+                        <p class="mt-3" role="status">@removedChanges.Count işlem kaldırılacak, @staged.Count yeni işlem eklenecek.</p>
+                        <h3 class="h5">Kaydetme sonrası bu oturumun kelimeleri</h3>
+                        <div class="session-chips">@foreach (var word in PreviewWords) { <span class="session-chip">@word</span> }</div>
+                        <div class="d-flex gap-2 mt-4"><button class="btn btn-primary" @onclick="SaveAsync">Değişiklikleri Kaydet</button><button class="btn btn-outline-secondary" @onclick="CancelEdit">Vazgeç</button></div>
+                    </fieldset>
+                }
+                @if (confirmingDelete)
+                {
+                    <section class="alert alert-danger mt-4" role="alertdialog" aria-modal="false" aria-labelledby="delete-session-title" aria-describedby="delete-session-description">
+                        <h3 id="delete-session-title" class="h5">Bu oturumu silmek istediğinize emin misiniz?</h3>
+                        <p id="delete-session-description">Bu oturumdaki notlar ve kelime değişiklikleri oturum geçmişinden kaldırılacaktır. Sonraki oturumların kelime durumları ve güncel atamalar yeniden hesaplanacaktır.</p>
+                        <div class="d-flex gap-2"><button class="btn btn-outline-secondary" disabled="@busy" @onclick="() => confirmingDelete = false">Vazgeç</button><button class="btn btn-danger" disabled="@busy" @onclick="DeleteAsync">Oturumu Sil</button></div>
+                    </section>
+                }            }
+            else { <p class="text-muted">Detayları görmek için bir oturum seçin.</p> }
+        </article>
+    </div>
+}
+@code {
+    [Parameter] public Guid AthleteId { get; set; }
+    private IReadOnlyList<AthleteSessionDto> sessions = [];
+    private SessionDetailDto? detail;
+    private string? name, message, privateNote, sharedNote;
+    private DateTime date = DateTime.Today;
+    private bool ready, busy, editing, confirmingDelete;
+    private IReadOnlyList<MotivationWordDto> pool = [];
+    private readonly HashSet<Guid> removedChanges = [];
+    private readonly List<SessionWordEdit> staged = [];
+    private string wordSearch = "";
+    private IEnumerable<WordSnapshotDto> EditWords => pool.Select(x => new WordSnapshotDto(x.Id, x.Text))
+        .Concat(detail?.BeginningWords ?? []).Concat(detail?.EndingWords ?? []).DistinctBy(x => x.MotivationWordId).OrderBy(x => x.Text);
+    private string WordText(Guid id) => EditWords.First(x => x.MotivationWordId == id).Text;
+    private IEnumerable<string> PreviewWords
+    {
+        get
+        {
+            var result = (detail?.BeginningWords ?? []).ToDictionary(x => x.MotivationWordId, x => x.Text);
+            foreach (var change in detail?.Changes.Where(x => !removedChanges.Contains(x.Id)) ?? [])
+                if (change.Added) result[change.MotivationWordId] = change.Text; else result.Remove(change.MotivationWordId);
+            foreach (var change in staged)
+                if (change.Added) result[change.MotivationWordId] = WordText(change.MotivationWordId); else result.Remove(change.MotivationWordId);
+            return result.Values.OrderBy(x => x);
+        }
+    }
+    private void BeginEdit() { editing = true; removedChanges.Clear(); staged.Clear(); wordSearch = ""; }
+    private void CancelEdit() { editing = false; if (detail is not null) SetFields(); }
+    private void ToggleRemoval(Guid id) { if (!removedChanges.Add(id)) removedChanges.Remove(id); }
+    private void Stage(Guid id, bool added)
+    {
+        staged.RemoveAll(x => x.MotivationWordId == id);
+        if (detail!.Changes.Any(x => !removedChanges.Contains(x.Id) && x.MotivationWordId == id && x.Added == added)) return;
+        staged.Add(new(id, added));
+    }
+    private void SetFields()
+    {
+        privateNote = detail!.PrivateCoachNote; sharedNote = detail.SharedNote;
+        date = detail.Session.SessionDate.ToOffset(TimeSpan.FromHours(3)).Date;
+    }
+    protected override async Task OnParametersSetAsync()
+    {
+        ready = false; detail = null; sessions = []; name = null; editing = false; confirmingDelete = false;
+        await RunAsync(async () =>
+        {
+            await Access.EnsureCanManageSessionAsync(AthleteId, CancellationToken.None);
+            name = (await Profiles.GetAsync(AthleteId, CancellationToken.None)).FullName;
+            sessions = await Sessions.GetForAthleteAsync(AthleteId, CancellationToken.None);
+            pool = await Words.GetForBranchAsync(null, CancellationToken.None);
+            ready = true;
+            if (sessions.Count > 0) await LoadDetailAsync(sessions[0].Id);
+        });
+    }
+    private async Task LoadDetailAsync(Guid id)
+    {
+        detail = await Sessions.GetDetailAsync(AthleteId, id, CancellationToken.None);
+        SetFields();
+        editing = false; confirmingDelete = false;
+    }
+    private Task SelectAsync(Guid id) => RunAsync(() => LoadDetailAsync(id));
+    private Task CreateAsync() => RunAsync(async () =>
+    {
+        var session = await Sessions.CreateAsync(new(AthleteId, "", DateTimeOffset.UtcNow, null), CancellationToken.None);
+        sessions = await Sessions.GetForAthleteAsync(AthleteId, CancellationToken.None);
+        await LoadDetailAsync(session.Id);
+        message = "Başarılı: Yeni oturum oluşturuldu.";
+    });
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        if (detail is null) return;
+        await Sessions.EditAsync(new(AthleteId, detail.Session.Id, detail.Revision,
+            new DateTimeOffset(DateTime.SpecifyKind(date.Date, DateTimeKind.Unspecified), TimeSpan.FromHours(3)),
+            privateNote, sharedNote, removedChanges.ToArray(), staged.ToArray()), CancellationToken.None);
+        sessions = await Sessions.GetForAthleteAsync(AthleteId, CancellationToken.None);
+        await LoadDetailAsync(detail.Session.Id);
+        message = "Başarılı: Oturum kaydedildi; sonraki oturumların kelimeleri ve güncel atamalar yeniden hesaplandı.";
+    });
+    private Task DeleteAsync() => RunAsync(async () =>
+    {
+        if (detail is null || !confirmingDelete) return;
+        await Sessions.DeleteAsync(new(AthleteId, detail.Session.Id, detail.Revision), CancellationToken.None);
+        detail = null; confirmingDelete = false;
+        sessions = await Sessions.GetForAthleteAsync(AthleteId, CancellationToken.None);
+        if (sessions.Count > 0) await LoadDetailAsync(sessions[0].Id);
+        message = "Başarılı: Oturum silindi; kelime geçmişi ve güncel atamalar güncellendi.";
+    });
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (busy) return;
+        busy = true; message = null;
+        try { await action(); }
+        catch (SporcuGelisim.Application.Common.ForbiddenException ex) { message = "Hata: " + ex.Message; }
+        catch (SporcuGelisim.Application.Common.ConflictException ex) { message = "Hata: " + ex.Message; }
+        catch (Exception) { message = "Hata: İşlem tamamlanamadı. Sayfayı yenileyip tekrar deneyin."; }
+        finally { busy = false; }
+    }
+}

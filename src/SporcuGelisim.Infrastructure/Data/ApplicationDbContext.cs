@@ -17,6 +17,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<WordBranch> WordBranches => Set<WordBranch>();
     public DbSet<AthleteRelation> AthleteRelations => Set<AthleteRelation>();
     public DbSet<AthleteSession> AthleteSessions => Set<AthleteSession>();
+    public DbSet<SessionWordSnapshot> SessionWordSnapshots => Set<SessionWordSnapshot>();
+    public DbSet<AthleteWordChange> AthleteWordChanges => Set<AthleteWordChange>();
     public DbSet<SessionWord> SessionWords => Set<SessionWord>();
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
     public DbSet<FileAsset> FileAssets => Set<FileAsset>();
@@ -33,6 +35,22 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         ConfigureBase<MotivationWord>(builder);
         ConfigureBase<AthleteRelation>(builder);
         ConfigureBase<AthleteSession>(builder);
+        ConfigureBase<SessionWordSnapshot>(builder);
+        ConfigureBase<AthleteWordChange>(builder);
+        builder.Entity<SessionWordSnapshot>(entity =>
+        {
+            entity.Property(x => x.WordText).HasMaxLength(120);
+            entity.HasOne<AthleteSession>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(x => new { x.SessionId, x.MotivationWordId, x.IsBeginning }).IsUnique();
+        });
+        builder.Entity<AthleteWordChange>(entity =>
+        {
+            entity.Property(x => x.WordText).HasMaxLength(120);
+            entity.Property(x => x.Source).HasMaxLength(30);
+            entity.HasOne<AthleteSession>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<AthleteProfile>().WithMany().HasForeignKey(x => x.AthleteProfileId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(x => new { x.AthleteProfileId, x.SessionId });
+        });
         ConfigureBase<SessionWord>(builder);
         ConfigureBase<Feedback>(builder);
         ConfigureBase<FileAsset>(builder);
@@ -99,6 +117,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             entity.Property(x => x.Title).HasMaxLength(160).IsRequired();
             entity.Property(x => x.Description).HasMaxLength(2000);
+            entity.Property(x => x.PrivateCoachNote).HasMaxLength(10000);
+            entity.Property(x => x.SharedNote).HasMaxLength(10000);
             entity.HasOne<AthleteProfile>().WithMany().HasForeignKey(x => x.AthleteProfileId).OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(x => new { x.AthleteProfileId, x.SessionNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
         });

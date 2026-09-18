@@ -21,6 +21,9 @@ public sealed record AthleteProfileDto(
 public sealed record AthleteRelationDto(Guid Id, Guid AthleteProfileId, Guid RelatedUserId, AthleteRelationType RelationType, bool IsActive);
 public sealed record AthleteSessionDto(Guid Id, Guid AthleteProfileId, string Title, int SessionNumber, DateTimeOffset SessionDate, SessionStatus Status);
 public sealed record SessionWordDto(Guid Id, Guid SessionId, Guid MotivationWordId, string WordTextSnapshot, SelectionSource SelectionSource);
+public sealed record WordSnapshotDto(Guid MotivationWordId, string Text);
+public sealed record WordChangeDto(Guid Id, Guid MotivationWordId, string Text, bool Added, string Source, DateTimeOffset CreatedAt);
+public sealed record SessionDetailDto(AthleteSessionDto Session, DateTimeOffset CreatedAt, string? PrivateCoachNote, string? SharedNote, bool CanEditWords, bool HasWordHistory, IReadOnlyList<WordSnapshotDto> BeginningWords, IReadOnlyList<WordSnapshotDto> EndingWords, IReadOnlyList<WordChangeDto> Changes, bool CanDelete = false, string Revision = "");
 public sealed record WordAssignmentDto(Guid Id, Guid MotivationWordId, string WordText, Guid AthleteProfileId, string AthleteName, bool IsActive);
 public sealed record WordRequestDto(
     Guid Id,

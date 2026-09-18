@@ -1,9 +1,25 @@
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Hosting;
 
 namespace SporcuGelisim.IntegrationTests;
 
 public sealed class SecurityPageTests
 {
+    [Fact]
+    public async Task Web_server_starts_even_when_database_is_unavailable()
+    {
+        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.UseSetting(
+                "ConnectionStrings:DefaultConnection",
+                "Server=127.0.0.1,1;Database=Unavailable;User Id=invalid;Password=invalid;Connect Timeout=1;TrustServerCertificate=True"));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var response = await client.GetAsync("/privacy", timeout.Token);
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+    }
+
     [Fact]
     public async Task Anonymous_user_is_redirected_from_dashboard()
     {

@@ -1,0 +1,28 @@
+@page "/coach/athletes/{AthleteId:guid}/words"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = RoleNames.Coach + "," + RoleNames.Admin)]
+@using SporcuGelisim.Web.Components.Shared
+@inject IAthleteProfileService Profiles
+@inject IAthleteAccessService Access
+
+<PageTitle>Atanmış Kelimeler</PageTitle>
+<section class="page-hero compact-hero"><div><p class="dashboard-kicker">Sporcuya özel</p><h1>Atanmış Kelimeler</h1><p>@name</p></div><a class="btn btn-outline-primary" href="@($"/coach/athletes/{AthleteId}")">Profile dön</a></section>
+@if (ready)
+{
+    <section class="content-card p-4">
+        <p class="text-muted">Değişiklikler varsa en son oluşturulan oturuma otomatik işlenir.</p>
+        <AssignedWordEditor AthleteId="AthleteId" @key="AthleteId" />
+    </section>
+}
+else { <StatusMessage Message="@message" /> }
+@code {
+    [Parameter] public Guid AthleteId { get; set; }
+    private string? name, message;
+    private bool ready;
+    protected override async Task OnParametersSetAsync()
+    {
+        ready = false; name = null;
+        try { await Access.EnsureCanManageSessionAsync(AthleteId, CancellationToken.None); name = (await Profiles.GetAsync(AthleteId, CancellationToken.None)).FullName; ready = true; }
+        catch (Exception) { message = "Hata: Sporcu bulunamadı veya erişim yetkiniz yok."; }
+    }
+}

@@ -150,31 +150,12 @@ else
 
                 <div class="detail-sections">
                     <section>
-                        <div class="section-title-row">
-                            <h3>Oturumlar</h3>
-                            <span>@sessions.Count kayıt</span>
-                        </div>
-                        @if (sessions.Count == 0)
-                        {
-                            <p class="muted-line">Bu sporcu için oturum kaydı yok.</p>
-                        }
-                        else
-                        {
-                            <div class="compact-list">
-                                @foreach (var session in sessions.Take(5))
-                                {
-                                    <div>
-                                        <strong>@session.Title</strong>
-                                        <span>@session.SessionDate.ToLocalTime().ToString("dd.MM.yyyy") - @StatusText(session.Status)</span>
-                                    </div>
-                                }
-                            </div>
-                        }
+                        <SporcuGelisim.Web.Components.Shared.AthleteSessionSummary AthleteId="selectedAthlete.Id" Count="sessionCount" LastSessionDate="lastSessionDate" />
                     </section>
 
                     <section>
                         <div class="section-title-row">
-                            <h3>Atanmış Kelimeler</h3>
+                            <h3><a href="@($"/coach/athletes/{selectedAthlete.Id}/words")">Atanmış Kelimeler →</a></h3>
                             <span>@assignedWords.Count kayıt</span>
                         </div>
                         @if (assignedWords.Count == 0)
@@ -252,7 +233,8 @@ else
     public Guid? SelectedAthleteId { get; set; }
 
     private IReadOnlyList<AthleteRow> athletes = [];
-    private IReadOnlyList<SessionRow> sessions = [];
+    private int sessionCount;
+    private DateTimeOffset? lastSessionDate;
     private IReadOnlyList<FeedbackRow> feedbacks = [];
     private IReadOnlyList<AssignmentRow> allAssignments = [];
     private IReadOnlyList<AssignmentRow> assignedWords = [];
@@ -283,7 +265,8 @@ else
         else
         {
             selectedAthlete = null;
-            sessions = [];
+            sessionCount = 0;
+            lastSessionDate = null;
             feedbacks = [];
             assignedWords = [];
             activeParents = [];
@@ -401,12 +384,10 @@ else
     private async Task LoadSelectedAsync(Guid athleteId)
     {
         selectedAthlete = athletes.FirstOrDefault(x => x.Id == athleteId);
-        sessions = await Db.AthleteSessions.AsNoTracking()
-            .Where(x => x.AthleteProfileId == athleteId)
-            .OrderByDescending(x => x.SessionDate)
-            .Select(x => new SessionRow(x.Title, x.SessionDate, x.Status))
-            .ToListAsync(CancellationToken.None);
-
+        var athleteSessions = Db.AthleteSessions.AsNoTracking().Where(x => x.AthleteProfileId == athleteId);
+        sessionCount = await athleteSessions.CountAsync();
+        lastSessionDate = await athleteSessions.OrderByDescending(x => x.SessionNumber)
+            .Select(x => (DateTimeOffset?)x.SessionDate).FirstOrDefaultAsync();
         feedbacks = await Db.Feedbacks.AsNoTracking()
             .Where(x => x.AthleteProfileId == athleteId && (isAdmin || x.AuthorUserId == currentUserId || x.RecipientUserId == currentUserId))
             .OrderByDescending(x => x.FeedbackDate)
@@ -486,16 +467,7 @@ else
     private static string PhotoUrl(string path) =>
         path.StartsWith("/", StringComparison.Ordinal) ? path : $"/{path.Replace('\\', '/')}";
 
-    private static string StatusText(SessionStatus status) => status switch
-    {
-        SessionStatus.Draft => "Taslak",
-        SessionStatus.Active => "Aktif",
-        SessionStatus.Completed => "Tamamlandı",
-        SessionStatus.Cancelled => "İptal edildi",
-        _ => status.ToString()
-    };
-
-    private static string RelationTypeText(AthleteRelationType relationType) => relationType switch
+private static string RelationTypeText(AthleteRelationType relationType) => relationType switch
     {
         AthleteRelationType.Coach => "Antrenör ilişkisi",
         AthleteRelationType.Parent => "Ebeveyn ilişkisi",
@@ -516,7 +488,6 @@ else
         DateOnly? BirthDate,
         string? ProfilePhotoPath);
 
-    private sealed record SessionRow(string Title, DateTimeOffset SessionDate, SessionStatus Status);
     private sealed record FeedbackRow(DateTimeOffset FeedbackDate, string Comment);
     private sealed record AssignmentRow(Guid Id, Guid AthleteProfileId, string WordText);
     private sealed record UserOption(Guid Id, string Name);

@@ -41,6 +41,7 @@ builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateBranchRequestValidator>();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddScoped<ICurrentUserService, ComponentCurrentUserService>();
 
 builder.Services.AddAuthentication(options =>
     {
@@ -665,29 +666,37 @@ app.MapPost("/athlete/profile/update", async (
     })
     .RequireAuthorization(policy => policy.RequireRole(RoleNames.Athlete));
 
-using (var scope = app.Services.CreateScope())
+// Database availability must not prevent Kestrel from binding its HTTP/HTTPS ports.
+// LocalDB can take time to start or be temporarily unavailable on development machines,
+// so migration and seed work begins only after the web server has started.
+app.Lifetime.ApplicationStarted.Register(() =>
 {
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    _ = Task.Run(async () =>
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-    try
-    {
-        await db.Database.MigrateAsync();
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Database migration skipped. Run the runbook commands when LocalDB is available.");
-    }
+        try
+        {
+            await db.Database.MigrateAsync(app.Lifetime.ApplicationStopping);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Database migration skipped. Run the runbook commands when LocalDB is available.");
+        }
 
-    try
-    {
-        await scope.ServiceProvider.GetRequiredService<DbSeeder>().SeedAsync(CancellationToken.None);
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Database seed skipped. Run the runbook commands when LocalDB is available.");
-    }
-}
+        try
+        {
+            await scope.ServiceProvider.GetRequiredService<DbSeeder>()
+                .SeedAsync(app.Lifetime.ApplicationStopping);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Database seed skipped. Run the runbook commands when LocalDB is available.");
+        }
+    });
+});
 
 app.Run();
 

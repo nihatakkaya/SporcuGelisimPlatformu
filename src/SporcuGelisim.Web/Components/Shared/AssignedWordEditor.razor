@@ -1,0 +1,82 @@
+@inject IAthleteWordWorkflow Workflow
+@inject IMotivationWordService WordService
+
+<section class="word-editor" aria-busy="@busy">
+    <StatusMessage Message="@message" />
+    <h3 class="h5">Güncel atanmış kelimeler <span class="badge text-bg-light">@current.Count</span></h3>
+    @if (current.Count == 0) { <p class="text-muted">Henüz atanmış kelime yok.</p> }
+    <div class="session-chips">
+        @foreach (var word in current)
+        {
+            <span class="session-chip current-word-chip">@word.Text <button type="button" disabled="@busy" aria-label="@(word.Text + " kelimesini kaldır")" @onclick="() => RemoveAsync(word.MotivationWordId)">−</button></span>
+        }
+    </div>
+    <div class="word-picker mt-4">
+        <label for="word-search" class="form-label fw-semibold">Yeni kelimeler seçin</label>
+        <input id="word-search" class="form-control" placeholder="Kelime ara…" @bind="search" @bind:event="oninput" disabled="@busy" />
+        <div class="session-chips picker-options mt-3">
+            @foreach (var word in AvailableWords)
+            {
+                <button type="button" class="session-chip available-word-chip @(selected.Contains(word.Id) ? "selected" : "")" aria-pressed="@(selected.Contains(word.Id) ? "true" : "false")" disabled="@busy" @onclick="() => Toggle(word.Id)">@(selected.Contains(word.Id) ? "✓" : "+") @word.Text</button>
+            }
+            @if (!AvailableWords.Any()) { <p class="text-muted">Aramanıza uygun yeni kelime bulunamadı.</p> }
+        </div>
+        @if (selected.Count > 0)
+        {
+            <p class="mt-3 mb-2">Seçilen yeni kelimeler</p>
+            <div class="session-chips">
+                @foreach (var word in pool.Where(x => selected.Contains(x.Id)))
+                { <button type="button" class="session-chip added" disabled="@busy" @onclick="() => Toggle(word.Id)" aria-label="@(word.Text + " seçimini kaldır")">+ @word.Text ×</button> }
+            </div>
+        }
+        <div class="d-flex flex-wrap gap-3 align-items-center mt-3">
+            <span role="status">@selected.Count kelime seçildi</span>
+            <button type="button" class="btn btn-primary" disabled="@(busy || selected.Count == 0)" @onclick="AssignAsync">Seçilen Kelimeleri Ata</button>
+            <button type="button" class="btn btn-outline-secondary" disabled="@(busy || selected.Count == 0)" @onclick="() => selected.Clear()">Seçimi temizle</button>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter] public Guid AthleteId { get; set; }
+    [Parameter] public Guid? SessionId { get; set; }
+    [Parameter] public EventCallback Changed { get; set; }
+    private IReadOnlyList<WordSnapshotDto> current = [];
+    private IReadOnlyList<MotivationWordDto> pool = [];
+    private readonly HashSet<Guid> selected = [];
+    private string search = "";
+    private string? message;
+    private bool busy;
+    private IEnumerable<MotivationWordDto> AvailableWords => pool.Where(x => current.All(c => c.MotivationWordId != x.Id) && x.Text.Contains(search, StringComparison.CurrentCultureIgnoreCase));
+    protected override async Task OnParametersSetAsync()
+    {
+        current = []; pool = []; selected.Clear(); message = null;
+        try { await ReloadAsync(); }
+        catch (Exception) { message = "Hata: Kelimeler yüklenemedi veya erişim yetkiniz yok."; }
+    }
+    private async Task ReloadAsync()
+    {
+        current = await Workflow.GetCurrentAsync(AthleteId, CancellationToken.None);
+        pool = await WordService.GetForBranchAsync(null, CancellationToken.None);
+    }
+    private void Toggle(Guid id) { if (!selected.Add(id)) selected.Remove(id); }
+    private Task AssignAsync() => ChangeAsync(selected.ToArray(), []);
+    private Task RemoveAsync(Guid id) => ChangeAsync([], [id]);
+    private async Task ChangeAsync(Guid[] added, Guid[] removed)
+    {
+        if (busy) return;
+        busy = true;
+        try
+        {
+            await Workflow.ChangeAsync(new(AthleteId, added, removed, SessionId), CancellationToken.None);
+            selected.Clear();
+            await ReloadAsync();
+            await Changed.InvokeAsync();
+            message = "Başarılı: Kelimeler ve değişiklik geçmişi güncellendi.";
+        }
+        catch (SporcuGelisim.Application.Common.ForbiddenException ex) { message = "Hata: " + ex.Message; }
+        catch (SporcuGelisim.Application.Common.ConflictException ex) { message = "Hata: " + ex.Message; }
+        catch (Exception) { message = "Hata: İşlem tamamlanamadı. Sayfayı yenileyip tekrar deneyin."; }
+        finally { busy = false; }
+    }
+}

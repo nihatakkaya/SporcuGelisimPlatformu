@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IBranchService, BranchService>();
         services.AddScoped<IMotivationWordService, MotivationWordService>();
         services.AddScoped<IAthleteSessionService, AthleteSessionService>();
+        services.AddScoped<IAthleteWordWorkflow, AthleteWordWorkflow>();
         services.AddScoped<ISessionWordService, SessionWordService>();
         services.AddScoped<IFeedbackService, FeedbackService>();
         services.AddScoped<IFileStorageService, FileStorageService>();

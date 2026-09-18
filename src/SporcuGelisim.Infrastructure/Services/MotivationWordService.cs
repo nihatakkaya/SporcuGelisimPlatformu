@@ -79,37 +79,18 @@ public sealed class MotivationWordService(
 
     public async Task AssignAthletesAsync(AssignWordToAthletesRequest request, CancellationToken cancellationToken)
     {
-        if (currentUser.UserId is null)
-        {
-            throw new ForbiddenException("Kelime atamak için oturum açmanız gerekir.");
-        }
-
-        await access.EnsureCanManageWordAsync(request.MotivationWordId, cancellationToken);
-
-        foreach (var athleteProfileId in request.AthleteProfileIds.Distinct())
-        {
-            await access.EnsureCanAccessAthleteAsync(athleteProfileId, cancellationToken);
-            await AssignWordToAthleteAsync(request.MotivationWordId, athleteProfileId, currentUser.UserId.Value, cancellationToken);
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
+        foreach (var athleteId in request.AthleteProfileIds.Distinct())
+            await access.EnsureCanManageSessionAsync(athleteId, cancellationToken);
+        foreach (var athleteId in request.AthleteProfileIds.Distinct())
+            await new AthleteWordWorkflow(db, currentUser, access).ChangeAsync(new(athleteId, [request.MotivationWordId], []), cancellationToken);
     }
 
     public async Task RemoveAthleteAssignmentAsync(Guid assignmentId, CancellationToken cancellationToken)
     {
-        var entity = await db.AthleteWordAssignments.FirstOrDefaultAsync(x => x.Id == assignmentId, cancellationToken)
+        var entity = await db.AthleteWordAssignments.AsNoTracking().FirstOrDefaultAsync(x => x.Id == assignmentId, cancellationToken)
             ?? throw new NotFoundException("Kelime ataması bulunamadı.");
-
-        if (!currentUser.Roles.Contains(RoleNames.Admin) && entity.AssignedByUserId != currentUser.UserId)
-        {
-            throw new ForbiddenException("Yalnızca kendi kelime atamalarınızı kaldırabilirsiniz.");
-        }
-
-        entity.IsActive = false;
-        entity.UpdatedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+        await new AthleteWordWorkflow(db, currentUser, access).ChangeAsync(new(entity.AthleteProfileId, [], [entity.MotivationWordId]), cancellationToken);
     }
-
     public async Task<IReadOnlyList<MotivationWordDto>> GetForBranchAsync(Guid? branchId, CancellationToken cancellationToken)
     {
         var query = db.MotivationWords.AsNoTracking().Where(x => x.IsActive);
@@ -222,55 +203,68 @@ public sealed class MotivationWordService(
 
     public async Task<WordRequestDto> ReviewWordRequestAsync(ReviewWordRequest request, CancellationToken cancellationToken)
     {
-        if (currentUser.UserId is null || !currentUser.Roles.Contains(RoleNames.Coach))
+        if (currentUser.UserId is null || (!currentUser.Roles.Contains(RoleNames.Coach) && !currentUser.Roles.Contains(RoleNames.Admin)))
         {
             throw new ForbiddenException("Kelime isteği yalnızca antrenör tarafından değerlendirilebilir.");
         }
 
-        var entity = await db.AthleteWordRequests.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken)
-            ?? throw new NotFoundException("Kelime isteği bulunamadı.");
-        if (entity.TargetCoachUserId != currentUser.UserId.Value)
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+        try
         {
-            throw new ForbiddenException("Yalnızca size gönderilen kelime isteğini değerlendirebilirsiniz.");
-        }
-
-        if (entity.Status != WordRequestStatus.Pending)
-        {
-            throw new ConflictException("Bu kelime isteği daha önce değerlendirilmiş.");
-        }
-
-        entity.Status = request.Approved ? WordRequestStatus.Approved : WordRequestStatus.Rejected;
-        entity.ReviewedByUserId = currentUser.UserId.Value;
-        entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewNote = Clean(request.ReviewNote);
-        entity.UpdatedAt = DateTimeOffset.UtcNow;
-
-        if (request.Approved)
-        {
-            var word = await db.MotivationWords.FirstOrDefaultAsync(x => x.NormalizedText == entity.NormalizedText && x.CreatedByUserId == currentUser.UserId.Value, cancellationToken);
-            if (word is null)
+            var entity = await db.AthleteWordRequests.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken)
+                ?? throw new NotFoundException("Kelime isteği bulunamadı.");
+            if (entity.TargetCoachUserId != currentUser.UserId.Value && !currentUser.Roles.Contains(RoleNames.Admin))
             {
-                word = new MotivationWord
-                {
-                    Text = entity.Text,
-                    NormalizedText = entity.NormalizedText,
-                    Description = entity.Note,
-                    IsGlobal = false,
-                    IsActive = true,
-                    CreatedByUserId = currentUser.UserId.Value,
-                    CreatedByRole = RoleNames.Coach
-                };
-                db.MotivationWords.Add(word);
-                await db.SaveChangesAsync(cancellationToken);
+                throw new ForbiddenException("Yalnızca size gönderilen kelime isteğini değerlendirebilirsiniz.");
             }
 
-            entity.CreatedWordId = word.Id;
-            await AssignWordToAthleteAsync(word.Id, entity.AthleteProfileId, currentUser.UserId.Value, cancellationToken);
-        }
+            if (entity.Status != WordRequestStatus.Pending)
+            {
+                throw new ConflictException("Bu kelime isteği daha önce değerlendirilmiş.");
+            }
 
-        await db.SaveChangesAsync(cancellationToken);
-        await audit.WriteAsync("WordRequestReviewed", nameof(AthleteWordRequest), entity.Id.ToString(), null, entity, cancellationToken);
-        return await GetWordRequestAsync(entity.Id, cancellationToken);
+            await access.EnsureCanManageSessionAsync(entity.AthleteProfileId, cancellationToken);
+            entity.Status = request.Approved ? WordRequestStatus.Approved : WordRequestStatus.Rejected;
+            entity.ReviewedByUserId = currentUser.UserId.Value;
+            entity.ReviewedAt = DateTimeOffset.UtcNow;
+            entity.ReviewNote = Clean(request.ReviewNote);
+            entity.UpdatedAt = DateTimeOffset.UtcNow;
+
+            if (request.Approved)
+            {
+                var word = await db.MotivationWords.FirstOrDefaultAsync(x => x.NormalizedText == entity.NormalizedText, cancellationToken);
+                if (word is null)
+                {
+                    word = new MotivationWord
+                    {
+                        Text = entity.Text,
+                        NormalizedText = entity.NormalizedText,
+                        Description = entity.Note,
+                        IsGlobal = false,
+                        IsActive = true,
+                        CreatedByUserId = currentUser.UserId.Value,
+                        CreatedByRole = RoleNames.Coach
+                    };
+                    db.MotivationWords.Add(word);
+                    await db.SaveChangesAsync(cancellationToken);
+                }
+
+                entity.CreatedWordId = word.Id;
+                await AssignWordToAthleteAsync(word.Id, entity.AthleteProfileId, currentUser.UserId.Value, cancellationToken);
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            await audit.WriteAsync("WordRequestReviewed", nameof(AthleteWordRequest), entity.Id.ToString(), null, entity, cancellationToken);
+            var result = await GetWordRequestAsync(entity.Id, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            db.ChangeTracker.Clear();
+            throw;
+        }
     }
 
     public async Task<IReadOnlyList<WordRequestDto>> GetWordRequestsAsync(CancellationToken cancellationToken)
@@ -312,25 +306,8 @@ public sealed class MotivationWordService(
             (athleteUser.FirstName + " " + athleteUser.LastName).Trim(),
             (coachUser.FirstName + " " + coachUser.LastName).Trim());
 
-    private async Task AssignWordToAthleteAsync(Guid motivationWordId, Guid athleteProfileId, Guid assignedByUserId, CancellationToken cancellationToken)
-    {
-        var exists = await db.AthleteWordAssignments.AnyAsync(x =>
-            x.AthleteProfileId == athleteProfileId &&
-            x.MotivationWordId == motivationWordId &&
-            x.IsActive, cancellationToken);
-        if (exists)
-        {
-            return;
-        }
-
-        db.AthleteWordAssignments.Add(new AthleteWordAssignment
-        {
-            AthleteProfileId = athleteProfileId,
-            MotivationWordId = motivationWordId,
-            AssignedByUserId = assignedByUserId
-        });
-    }
-
+    private Task AssignWordToAthleteAsync(Guid motivationWordId, Guid athleteProfileId, Guid assignedByUserId, CancellationToken cancellationToken) =>
+        new AthleteWordWorkflow(db, currentUser, access).ChangeAsync(new(athleteProfileId, [motivationWordId], []), cancellationToken);
     private void EnsureCanCreate(bool requestedGlobal)
     {
         if (currentUser.Roles.Contains(RoleNames.Admin))

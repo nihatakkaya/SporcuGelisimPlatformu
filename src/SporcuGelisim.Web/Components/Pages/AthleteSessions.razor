@@ -1,12 +1,56 @@
 @page "/athlete/sessions"
+@rendermode InteractiveServer
 @attribute [Authorize(Roles = RoleNames.Athlete)]
+@using SporcuGelisim.Web.Components.Shared
+@using Microsoft.EntityFrameworkCore
+@inject SporcuGelisim.Infrastructure.Data.ApplicationDbContext Db
+@inject ICurrentUserService CurrentUser
+@inject IAthleteSessionService Sessions
 
 <PageTitle>Oturumlarım</PageTitle>
-
-<section class="content-card p-4">
-    <div class="page-heading">
-        <p class="dashboard-kicker">Sporcu</p>
-        <h1>Oturumlarım</h1>
-        <p>Oturum listesi, kelime seçimi ve önceki oturumdan kopyalama akışları servis katmanında hazırdır. Profil bilgileri tamamlandıktan sonra bu ekran oturum detaylarıyla genişletilecektir.</p>
-    </div>
-</section>
+<section class="page-hero compact-hero"><div><p class="dashboard-kicker">Gelişim geçmişim</p><h1>Oturumlarım</h1><p>Görüşmeleriniz, paylaşılan notlar ve kelime değişiklikleriniz.</p></div></section>
+<StatusMessage Message="@message" />
+<div class="session-workspace">
+    <aside class="content-card p-3 session-list">
+        @if (sessions.Count == 0) { <p class="text-muted">Henüz oturum kaydınız yok.</p> }
+        @foreach (var session in sessions)
+        {
+            <button type="button" class="session-list-card @(detail?.Session.Id == session.Id ? "selected" : "")" disabled="@busy" @onclick="() => SelectAsync(session.Id)"><strong>Oturum @session.SessionNumber</strong><time>@session.SessionDate.ToOffset(TimeSpan.FromHours(3)).ToString("dd.MM.yyyy")</time></button>
+        }
+    </aside>
+    <article class="content-card p-4">
+        @if (detail is not null)
+        {
+            <h2>Oturum @detail.Session.SessionNumber</h2>
+            <section class="note-panel mb-4"><h3 class="h5">Sporcu ile Paylaşılan Not</h3><p class="session-note-text">@(string.IsNullOrWhiteSpace(detail.SharedNote) ? "Henüz paylaşılan not yok." : detail.SharedNote)</p></section>
+            <SessionHistory Detail="detail" />
+        }
+    </article>
+</div>
+@code {
+    private Guid athleteId;
+    private IReadOnlyList<AthleteSessionDto> sessions = [];
+    private SessionDetailDto? detail;
+    private string? message;
+    private bool busy;
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var profile = await Db.AthleteProfiles.AsNoTracking().Where(x => x.UserId == CurrentUser.UserId).Select(x => new { x.Id }).SingleOrDefaultAsync();
+            if (profile is null) return;
+            athleteId = profile.Id;
+            sessions = await Sessions.GetForAthleteAsync(athleteId, CancellationToken.None);
+            if (sessions.Count > 0) await SelectAsync(sessions[0].Id);
+        }
+        catch (Exception) { message = "Hata: Oturumlar yüklenemedi."; }
+    }
+    private async Task SelectAsync(Guid id)
+    {
+        if (busy) return;
+        busy = true; detail = null;
+        try { detail = await Sessions.GetDetailAsync(athleteId, id, CancellationToken.None); }
+        catch (Exception) { message = "Hata: Bu oturuma erişilemiyor."; }
+        finally { busy = false; }
+    }
+}

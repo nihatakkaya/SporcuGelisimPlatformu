@@ -10,6 +10,9 @@ public sealed class AthleteSession : BaseEntity
     public int SessionNumber { get; set; }
     public DateTimeOffset SessionDate { get; set; } = DateTimeOffset.UtcNow;
     public string? Description { get; set; }
+    public string? PrivateCoachNote { get; set; }
+    public string? SharedNote { get; set; }
+    public bool HasWordHistory { get; set; }
     public SessionStatus Status { get; set; } = SessionStatus.Draft;
     public Guid? CreatedByUserId { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }

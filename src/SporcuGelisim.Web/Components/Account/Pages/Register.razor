@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = RoleNames.Admin + "," + RoleNames.Coach)]
 
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Identity
 @using SporcuGelisim.Domain.Entities
 @using SporcuGelisim.Domain.Enums
@@ -49,7 +50,7 @@
             </div>
             <div class="col-md-6">
                 <label for="Input.Role" class="form-label">Hesap türü</label>
-                <InputSelect @bind-Value="Input.Role" id="Input.Role" class="form-select">
+                <InputSelect @bind-Value="Input.Role" id="Input.Role" class="form-select" data-registration-role data-athlete-role="@RoleNames.Athlete">
                     @foreach (var role in AvailableRoleOptions)
                     {
                         <option value="@role.Value">@role.Label</option>
@@ -58,6 +59,17 @@
                 <ValidationMessage For="() => Input.Role" class="text-danger" />
             </div>
             <div class="col-md-6">
+                <label for="Input.PrimaryBranchId" class="form-label">Branş <span data-branch-required hidden="@(Input.Role != RoleNames.Athlete)" aria-hidden="true">*</span></label>
+                <InputSelect @bind-Value="Input.PrimaryBranchId" id="Input.PrimaryBranchId" class="form-select" data-registration-branch required="@(Input.Role == RoleNames.Athlete)" aria-required="@(Input.Role == RoleNames.Athlete ? "true" : "false")" aria-describedby="branch-help">
+                    <option value="">Branş seçin</option>
+                    @foreach (var branch in branches)
+                    {
+                        <option value="@branch.Id">@branch.Name</option>
+                    }
+                </InputSelect>
+                <small id="branch-help" class="form-text">Sporcu kaydı için branş seçimi zorunludur.</small>
+                <ValidationMessage For="() => Input.PrimaryBranchId" class="text-danger" />
+            </div>            <div class="col-md-6">
                 <label for="Input.Password" class="form-label">Şifre</label>
                 <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="new-password" />
                 <ValidationMessage For="() => Input.Password" class="text-danger" />
@@ -87,6 +99,7 @@
     ];
 
     private IReadOnlyList<RoleOption> AvailableRoleOptions = [];
+    private IReadOnlyList<BranchOption> branches = [];
     private Guid? currentUserId;
     private bool isAdmin;
     private bool isCoach;
@@ -104,10 +117,8 @@
         isAdmin = authState.User.IsInRole(RoleNames.Admin);
         isCoach = authState.User.IsInRole(RoleNames.Coach);
         AvailableRoleOptions = GetAvailableRoleOptions();
-        if (!AvailableRoleOptions.Any(x => x.Value == Input.Role))
-        {
-            Input.Role = AvailableRoleOptions.FirstOrDefault()?.Value ?? RoleNames.Athlete;
-        }
+        branches = await Db.SportBranches.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name)
+            .Select(x => new BranchOption(x.Id, x.Name)).ToListAsync();
     }
 
     public async Task RegisterUser()
@@ -120,6 +131,22 @@
             return;
         }
 
+        Guid? selectedBranchId = null;
+        // This guard runs on the server before any account or role is written.
+        if (Input.Role == RoleNames.Athlete)
+        {
+            if (!Guid.TryParse(Input.PrimaryBranchId, out var branchId) || branchId == Guid.Empty)
+            {
+                message = "Hata: Sporcu kaydı oluşturmak için branş seçmelisiniz.";
+                return;
+            }
+            if (!await Db.SportBranches.AnyAsync(x => x.Id == branchId && x.IsActive))
+            {
+                message = "Hata: Seçilen branş bulunamadı veya aktif değil. Aktif bir branş seçin.";
+                return;
+            }
+            selectedBranchId = branchId;
+        }
         if (!await RoleManager.RoleExistsAsync(Input.Role))
         {
             var createRole = await RoleManager.CreateAsync(new IdentityRole<Guid>(Input.Role));
@@ -155,7 +182,7 @@
 
         if (Input.Role == RoleNames.Athlete)
         {
-            var profile = new AthleteProfile { UserId = user.Id };
+            var profile = new AthleteProfile { UserId = user.Id, PrimaryBranchId = selectedBranchId };
             Db.AthleteProfiles.Add(profile);
             if (isCoach && currentUserId.HasValue)
             {
@@ -233,8 +260,17 @@
 
     private sealed record RoleOption(string Value, string Label);
 
-    private sealed class InputModel
+    private sealed record BranchOption(Guid Id, string Name);
+
+    private sealed class InputModel : IValidatableObject
     {
+        public string? PrimaryBranchId { get; set; }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (Role == RoleNames.Athlete && (!Guid.TryParse(PrimaryBranchId, out var branchId) || branchId == Guid.Empty))
+                yield return new ValidationResult("Sporcu kaydı oluşturmak için branş seçmelisiniz.", [nameof(PrimaryBranchId)]);
+        }
         [Required(ErrorMessage = "Ad zorunludur.")]
         [StringLength(100, ErrorMessage = "Ad en fazla 100 karakter olabilir.")]
         public string FirstName { get; set; } = "";

@@ -55,9 +55,18 @@ public sealed class AthleteAccessService(ApplicationDbContext db, ICurrentUserSe
     public async Task EnsureCanManageSessionAsync(Guid athleteProfileId, CancellationToken cancellationToken)
     {
         await EnsureCanAccessAthleteAsync(athleteProfileId, cancellationToken);
-        if (currentUser.Roles.Contains(RoleNames.Parent))
+        if (!currentUser.Roles.Contains(RoleNames.Admin) && !currentUser.Roles.Contains(RoleNames.Coach))
         {
-            throw new ForbiddenException("Ebeveyn kullanıcılar oturum yönetemez.");
+            throw new ForbiddenException("Oturumları yalnızca sorumlu antrenör yönetebilir.");
+        }
+        if (!currentUser.Roles.Contains(RoleNames.Admin))
+        {
+            var relations = await db.AthleteRelations.AsNoTracking()
+                .Where(x => x.AthleteProfileId == athleteProfileId && x.RelatedUserId == currentUser.UserId
+                    && x.RelationType == AthleteRelationType.Coach && x.IsActive)
+                .Select(x => x.EndDate).ToListAsync(cancellationToken);
+            if (!relations.Any(x => x is null || x > DateTimeOffset.UtcNow))
+                throw new ForbiddenException("Aktif antrenör ilişkiniz bulunmuyor.");
         }
     }
 

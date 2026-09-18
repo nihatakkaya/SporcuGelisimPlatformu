@@ -60,9 +60,19 @@ public interface IMotivationWordService
 
 public interface IAthleteSessionService
 {
+    Task EditAsync(EditSessionRequest request, CancellationToken cancellationToken);
+    Task DeleteAsync(DeleteSessionRequest request, CancellationToken cancellationToken);
+    Task<SessionDetailDto> GetDetailAsync(Guid athleteProfileId, Guid sessionId, CancellationToken cancellationToken);
+    Task SaveNotesAsync(SaveSessionNotesRequest request, CancellationToken cancellationToken);
     Task<AthleteSessionDto> CreateAsync(CreateSessionRequest request, CancellationToken cancellationToken);
     Task<AthleteSessionDto> UpdateAsync(UpdateSessionRequest request, CancellationToken cancellationToken);
     Task<IReadOnlyList<AthleteSessionDto>> GetForAthleteAsync(Guid athleteProfileId, CancellationToken cancellationToken);
+}
+
+public interface IAthleteWordWorkflow
+{
+    Task ChangeAsync(ChangeAthleteWordsRequest request, CancellationToken cancellationToken);
+    Task<IReadOnlyList<WordSnapshotDto>> GetCurrentAsync(Guid athleteProfileId, CancellationToken cancellationToken);
 }
 
 public interface ISessionWordService

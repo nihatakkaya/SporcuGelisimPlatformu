@@ -23,9 +23,14 @@ public sealed record CreateSessionRequest(Guid AthleteProfileId, string Title, D
 public sealed record UpdateSessionRequest(Guid Id, string Title, DateTimeOffset SessionDate, string? Description, SessionStatus Status);
 public sealed record AddSessionWordsRequest(Guid SessionId, IReadOnlyCollection<Guid> MotivationWordIds);
 public sealed record CopySessionWordsRequest(Guid SourceSessionId, Guid TargetSessionId, IReadOnlyCollection<Guid>? SessionWordIds);
+public sealed record ChangeAthleteWordsRequest(Guid AthleteProfileId, IReadOnlyCollection<Guid> AddWordIds, IReadOnlyCollection<Guid> RemoveWordIds, Guid? SessionId = null);
+public sealed record SaveSessionNotesRequest(Guid SessionId, DateTimeOffset SessionDate, string? PrivateCoachNote, string? SharedNote);
 public sealed record CreateFeedbackRequest(Guid AthleteProfileId, Guid? SessionId, Guid? RecipientUserId, DateTimeOffset FeedbackDate, string Comment);
 public sealed record UpdateFeedbackRequest(Guid Id, DateTimeOffset FeedbackDate, string Comment);
 public sealed record AssignAthleteRelationRequest(Guid AthleteProfileId, Guid RelatedUserId, AthleteRelationType RelationType);
 public sealed record SubmitWordRequest(Guid AthleteProfileId, Guid TargetCoachUserId, string Text, string? Note);
 public sealed record ReviewWordRequest(Guid Id, bool Approved, string? ReviewNote);
 public sealed record UploadProfilePhotoRequest(Guid OwnerUserId, string FileName, string ContentType, long FileSize, Stream Content);
+public sealed record SessionWordEdit(Guid MotivationWordId, bool Added);
+public sealed record EditSessionRequest(Guid AthleteProfileId, Guid SessionId, string Revision, DateTimeOffset SessionDate, string? PrivateCoachNote, string? SharedNote, IReadOnlyCollection<Guid> RemovedChangeIds, IReadOnlyCollection<SessionWordEdit> NewChanges);
+public sealed record DeleteSessionRequest(Guid AthleteProfileId, Guid SessionId, string Revision);

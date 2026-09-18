@@ -191,12 +191,16 @@ public sealed class DashboardService(ApplicationDbContext db) : IDashboardServic
                group profile by branch == null ? "Branşsız" : branch.Name into g
                select new ReportRowDto(g.Key, g.Count())).ToListAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<ReportRowDto>> GetTopWordsAsync(CancellationToken cancellationToken) =>
-        await (from sessionWord in db.SessionWords.AsNoTracking()
-               group sessionWord by sessionWord.WordTextSnapshot into g
-               orderby g.Count() descending
-               select new ReportRowDto(g.Key, g.Count())).Take(20).ToListAsync(cancellationToken);
-
+    public async Task<IReadOnlyList<ReportRowDto>> GetTopWordsAsync(CancellationToken cancellationToken)
+    {
+        var legacy = db.SessionWords.AsNoTracking()
+            .Where(x => !db.SessionWordSnapshots.Any(s => s.SessionId == x.SessionId) &&
+                db.AthleteSessions.Any(s => s.Id == x.SessionId && !s.HasWordHistory))
+            .Select(x => x.WordTextSnapshot);
+        var current = db.SessionWordSnapshots.AsNoTracking().Where(x => !x.IsBeginning).Select(x => x.WordText);
+        return await legacy.Concat(current).GroupBy(x => x)
+            .OrderByDescending(x => x.Count()).Take(20).Select(x => new ReportRowDto(x.Key, x.Count())).ToListAsync(cancellationToken);
+    }
     public async Task<string> ExportWordUsageCsvAsync(CancellationToken cancellationToken) =>
         ToCsv(await GetTopWordsAsync(cancellationToken));
 
